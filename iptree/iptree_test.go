@@ -1,6 +1,7 @@
 package iptree
 
 import (
+	"fmt"
 	"net"
 	"testing"
 
@@ -59,6 +60,49 @@ func TestInsertNet(t *testing.T) {
 	invR.root64 = invR.root64.Insert(0x20010db800000000, 64, "test")
 	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:ff::/96")
 	assertPanic(func() { invR.InsertNet(n, "panic") }, "inserting to invalid IPv6 tree", t)
+}
+
+func TestGetByNet(t *testing.T) {
+	r := NewTree()
+
+	_, n4, _ := net.ParseCIDR("192.0.2.0/24")
+	r = r.InsertNet(n4, "test 1")
+
+	_, n6Short1, _ := net.ParseCIDR("2001:db8::/32")
+	r = r.InsertNet(n6Short1, "test 2.1")
+
+	_, n6Short2, _ := net.ParseCIDR("2001:db8:1::/48")
+	r = r.InsertNet(n6Short2, "test 2.2")
+
+	_, n6Long, _ := net.ParseCIDR("2001:db8:0:0:0:ff::/96")
+	r = r.InsertNet(n6Long, "test 3")
+
+	v, ok := r.GetByNet(nil)
+	if ok {
+		t.Errorf("Expected no result for nil network but got %T (%#v)", v, v)
+	}
+
+	v, ok = r.GetByNet(&net.IPNet{IP: nil, Mask: nil})
+	if ok {
+		t.Errorf("Expected no result for invalid network but got %T (%#v)", v, v)
+	}
+
+	v, ok = r.GetByNet(n4)
+	assertResult(v, ok, "test 1", fmt.Sprintf("%s", n4), t)
+
+	v, ok = r.GetByNet(n6Short1)
+	assertResult(v, ok, "test 2.1", fmt.Sprintf("%s", n6Short1), t)
+
+	v, ok = r.GetByNet(n6Long)
+	assertResult(v, ok, "test 3", fmt.Sprintf("%s", n6Long), t)
+
+	_, n6, _ := net.ParseCIDR("2001:db8:1::/64")
+	v, ok = r.GetByNet(n6)
+	assertResult(v, ok, "test 2.2", fmt.Sprintf("%s", n6), t)
+
+	_, n6, _ = net.ParseCIDR("2001:db8:0:0:0:fe::/96")
+	v, ok = r.GetByNet(n6)
+	assertResult(v, ok, "test 2.1", fmt.Sprintf("%s", n6), t)
 }
 
 func TestIPv4NetToUint32(t *testing.T) {
@@ -128,65 +172,33 @@ func TestIPv6NetToUint64Pair(t *testing.T) {
 
 func assertTree32Node(r *Tree, key uint32, bits int, e, desc string, t *testing.T) {
 	v, ok := r.root32.ExactMatch(key, bits)
-	if ok {
-		s, ok := v.(string)
-		if ok {
-			if s != e {
-				t.Errorf("Expected string %q at 0x%08x, %d for %s but got %q", e, key, bits, desc, s)
-			}
-		} else {
-			t.Errorf("Expected string %q at 0x%08x, %d for %s but got %T (%#v)", e, key, bits, desc, v, v)
-		}
-	} else {
-		t.Errorf("Expected string %q at 0x%08x, %d for %s but got nothing", e, key, bits, desc)
-	}
+	assertResult(v, ok, e, fmt.Sprintf("0x%08x, %d for %s", key, bits, desc), t)
 }
 
 func assertTree64Node(r *Tree, MSKey uint64, MSBits int, LSKey uint64, LSBits int, e, desc string, t *testing.T) {
+	desc = fmt.Sprintf("0x%016x, %d and 0x%016x, %d for %s", MSKey, MSBits, LSKey, LSBits, desc)
 	v, ok := r.root64.ExactMatch(MSKey, MSBits)
 	if ok {
 		if MSBits < 64 {
-			s, ok := v.(string)
-			if ok {
-				if s != e {
-					t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got %q",
-						e, MSKey, MSBits, LSKey, LSBits, desc, s)
-				}
-			} else {
-				t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got %T (%#v)",
-					e, MSKey, MSBits, LSKey, LSBits, desc, v, v)
-			}
+			assertResult(v, ok, e, desc, t)
 		} else {
-			r, ok := v.(*numtree.Node64)
+			r, ok := v.(subTree64)
 			if ok {
-				v, ok := r.ExactMatch(LSKey, LSBits)
+				v, ok := (*numtree.Node64)(r).ExactMatch(LSKey, LSBits)
 				if ok {
-					s, ok := v.(string)
-					if ok {
-						if s != e {
-							t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got %q",
-								e, MSKey, MSBits, LSKey, LSBits, desc, s)
-						}
-					} else {
-						t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got %T (%#v)",
-							e, MSKey, MSBits, LSKey, LSBits, desc, v, v)
-					}
+					assertResult(v, ok, e, desc, t)
 				} else {
-					t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got nothing at second hop",
-						e, MSKey, MSBits, LSKey, LSBits, desc)
+					t.Errorf("Expected string %q at %s but got nothing at second hop", e, desc)
 				}
 			} else {
-				t.Errorf("Expected *numtree.Node64 at 0x%016x, %d and 0x%016x, %d for %s (first hop) but got %T (%#v)",
-					MSKey, MSBits, LSKey, LSBits, desc, v, v)
+				t.Errorf("Expected subTree64 at %s (first hop) but got %T (%#v)", desc, v, v)
 			}
 		}
 	} else {
 		if MSBits < 64 {
-			t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got nothing",
-				e, MSKey, MSBits, LSKey, LSBits, desc)
+			t.Errorf("Expected string %q at %s but got nothing", e, desc)
 		} else {
-			t.Errorf("Expected string %q at 0x%016x, %d and 0x%016x, %d for %s but got nothing even at first hop",
-				e, MSKey, MSBits, LSKey, LSBits, desc)
+			t.Errorf("Expected string %q at %s but got nothing even at first hop", e, desc)
 		}
 	}
 }
@@ -199,4 +211,21 @@ func assertPanic(f func(), desc string, t *testing.T) {
 	}()
 
 	f()
+}
+
+func assertResult(v interface{}, ok bool, e, desc string, t *testing.T) {
+	if ok {
+		s, ok := v.(string)
+		if ok {
+			if s != e {
+				t.Errorf("Expected string %q at %s but got %q", e, desc, s)
+			}
+			return
+		}
+
+		t.Errorf("Expected string %q at %s but got %T (%#v)", e, desc, v, v)
+		return
+	}
+
+	t.Errorf("Expected string %q at %s but got nothing", e, desc)
 }

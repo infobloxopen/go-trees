@@ -2,7 +2,8 @@ package numtree
 
 import "fmt"
 
-const key64BitSize = 64
+// Key64BitSize is an alias for bitsize of 64-bit radix tree's key.
+const Key64BitSize = 64
 
 var (
 	masks64 = []uint64{
@@ -65,8 +66,8 @@ func (n *Node64) Dot() string {
 func (n *Node64) Insert(key uint64, bits int, value interface{}) *Node64 {
 	if bits < 0 {
 		bits = 0
-	} else if bits > key64BitSize {
-		bits = key64BitSize
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
 	}
 
 	return n.insert(newNode64(key, uint8(bits), true, value))
@@ -97,8 +98,8 @@ func (n *Node64) Match(key uint64, bits int) (interface{}, bool) {
 
 	if bits < 0 {
 		bits = 0
-	} else if bits > key64BitSize {
-		bits = key64BitSize
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
 	}
 
 	r := n.match(key, uint8(bits))
@@ -117,8 +118,8 @@ func (n *Node64) ExactMatch(key uint64, bits int) (interface{}, bool) {
 
 	if bits < 0 {
 		bits = 0
-	} else if bits > key64BitSize {
-		bits = key64BitSize
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
 	}
 
 	r := n.exactMatch(key, uint8(bits))
@@ -137,8 +138,8 @@ func (n *Node64) Delete(key uint64, bits int) (*Node64, bool) {
 
 	if bits < 0 {
 		bits = 0
-	} else if bits > key64BitSize {
-		bits = key64BitSize
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
 	}
 
 	return n.del(key, uint8(bits))
@@ -164,7 +165,7 @@ func (n *Node64) insert(c *Node64) *Node64 {
 
 	bits := clz64((n.Key ^ c.Key) | ^masks64[n.Bits] | ^masks64[c.Bits])
 	if bits < n.Bits {
-		branch := (n.Key >> (key64BitSize - 1 - bits)) & 1
+		branch := (n.Key >> (Key64BitSize - 1 - bits)) & 1
 		if bits == c.Bits {
 			c.chld[branch] = n
 			return c
@@ -185,7 +186,7 @@ func (n *Node64) insert(c *Node64) *Node64 {
 	m := newNode64(n.Key, n.Bits, n.Leaf, n.Value)
 	m.chld = n.chld
 
-	branch := (c.Key >> (key64BitSize - 1 - bits)) & 1
+	branch := (c.Key >> (Key64BitSize - 1 - bits)) & 1
 	m.chld[branch] = m.chld[branch].insert(c)
 
 	return m
@@ -222,7 +223,7 @@ func (n *Node64) match(key uint64, bits uint8) *Node64 {
 		return nil
 	}
 
-	c := n.chld[(key>>(key64BitSize-1-n.Bits))&1]
+	c := n.chld[(key>>(Key64BitSize-1-n.Bits))&1]
 	if c != nil {
 		r := c.match(key, bits)
 		if r != nil {
@@ -254,7 +255,7 @@ func (n *Node64) exactMatch(key uint64, bits uint8) *Node64 {
 		return nil
 	}
 
-	c := n.chld[(key>>(key64BitSize-1-n.Bits))&1]
+	c := n.chld[(key>>(Key64BitSize-1-n.Bits))&1]
 	if c != nil {
 		r := c.exactMatch(key, bits)
 		if r != nil {
@@ -278,7 +279,7 @@ func (n *Node64) del(key uint64, bits uint8) (*Node64, bool) {
 		return n, false
 	}
 
-	branch := (key >> (key64BitSize - 1 - n.Bits)) & 1
+	branch := (key >> (Key64BitSize - 1 - n.Bits)) & 1
 	c := n.chld[branch]
 	if c == nil {
 		return n, false
@@ -332,5 +333,5 @@ func clz64(x uint64) uint8 {
 		x <<= 4
 	}
 
-	return n + clzTable[x>>(key64BitSize-4)]
+	return n + clzTable[x>>(Key64BitSize-4)]
 }

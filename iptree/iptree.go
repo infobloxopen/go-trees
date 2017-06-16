@@ -19,6 +19,8 @@ type Tree struct {
 	root64 *numtree.Node64
 }
 
+type subTree64 *numtree.Node64
+
 // NewTree creates empty tree.
 func NewTree() *Tree {
 	return &Tree{}
@@ -37,7 +39,7 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 	}
 
 	if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
-		if MSBits < 64 {
+		if MSBits < numtree.Key64BitSize {
 			return &Tree{
 				root32: t.root32,
 				root64: t.root64.Insert(MSKey, MSBits, value)}
@@ -45,21 +47,55 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 
 		var r *numtree.Node64
 		if v, ok := t.root64.ExactMatch(MSKey, MSBits); ok {
-			r, ok = v.(*numtree.Node64)
+			s, ok := v.(subTree64)
 			if !ok {
-				err := fmt.Errorf("invalid IPv6 tree: expected *numtree.Node64 value at 0x%016x, %d but got %T (%#v)",
+				err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
 					MSKey, MSBits, v, v)
 				panic(err)
 			}
+
+			r = (*numtree.Node64)(s)
 		}
 
 		r = r.Insert(LSKey, LSBits, value)
 		return &Tree{
 			root32: t.root32,
-			root64: t.root64.Insert(MSKey, MSBits, r)}
+			root64: t.root64.Insert(MSKey, MSBits, subTree64(r))}
 	}
 
 	return t
+}
+
+// GetByNet gets value for network which is equal to or contains given network.
+func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
+	if n == nil {
+		return nil, false
+	}
+
+	if key, bits := iPv4NetToUint32(n); bits >= 0 {
+		return t.root32.Match(key, bits)
+	}
+
+	if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
+		v, ok := t.root64.Match(MSKey, MSBits)
+		if !ok || MSBits < numtree.Key64BitSize {
+			return v, ok
+		}
+
+		s, ok := v.(subTree64)
+		if !ok {
+			return v, true
+		}
+
+		v, ok = (*numtree.Node64)(s).Match(LSKey, LSBits)
+		if ok {
+			return v, ok
+		}
+
+		return t.root64.Match(MSKey, numtree.Key64BitSize-1)
+	}
+
+	return nil, false
 }
 
 func iPv4NetToUint32(n *net.IPNet) (uint32, int) {
@@ -85,10 +121,10 @@ func iPv6NetToUint64Pair(n *net.IPNet) (uint64, int, uint64, int) {
 		return 0, -1, 0, -1
 	}
 
-	MSBits := 64
+	MSBits := numtree.Key64BitSize
 	LSBits := 0
-	if ones > 64 {
-		LSBits = ones - 64
+	if ones > numtree.Key64BitSize {
+		LSBits = ones - numtree.Key64BitSize
 	} else {
 		MSBits = ones
 	}
