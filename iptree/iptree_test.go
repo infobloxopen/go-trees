@@ -224,6 +224,24 @@ func TestDeleteByNet(t *testing.T) {
 	assertPanic(func() { r.DeleteByNet(n6Long1) }, "deletion from invalid tree", t)
 }
 
+func TestTreeByIP(t *testing.T) {
+	ip := net.ParseIP("2001:db8::1")
+
+	var r *Tree
+	r = r.InsertIP(ip, "test")
+	if r == nil {
+		t.Errorf("Expected some tree after insert %s but got %#v", ip, r)
+	}
+
+	v, ok := r.GetByIP(ip)
+	assertResult(v, ok, "test", fmt.Sprintf("address %s", ip), t)
+
+	r, ok = r.DeleteByIP(ip)
+	if !ok {
+		t.Errorf("Expected deletion by address %s but got nothing", ip)
+	}
+}
+
 func TestIPv4NetToUint32(t *testing.T) {
 	_, n, _ := net.ParseCIDR("192.0.2.0/24")
 	key, bits := iPv4NetToUint32(n)
@@ -286,6 +304,23 @@ func TestIPv6NetToUint64Pair(t *testing.T) {
 	if MSBits >= 0 {
 		t.Errorf("Expected negative number of bits for invalid IPv6 mask but got 0x%016x, %d and 0x%016x, %d",
 			MSKey, MSBits, LSKey, LSBits)
+	}
+}
+
+func TestNewIPNetFromIP(t *testing.T) {
+	n := newIPNetFromIP(net.ParseIP("192.0.2.1"))
+	if n.String() != "192.0.2.1/32" {
+		t.Errorf("Expected %s for IPv4 conversion but got %s", "192.0.2.1/32", n)
+	}
+
+	n = newIPNetFromIP(net.ParseIP("2001:db8::1"))
+	if n.String() != "2001:db8::1/128" {
+		t.Errorf("Expected %s for IPv6 conversion but got %s", "2001:db8::1/128", n)
+	}
+
+	n = newIPNetFromIP(net.IP{0xc, 0x00})
+	if n != nil {
+		t.Errorf("Expected %#v for invalid IP address but got %s", nil, n)
 	}
 }
 

@@ -13,6 +13,11 @@ const (
 	iPv6Bits = net.IPv6len * 8
 )
 
+var (
+	iPv4MaxMask = net.CIDRMask(iPv4Bits, iPv4Bits)
+	iPv6MaxMask = net.CIDRMask(iPv6Bits, iPv6Bits)
+)
+
 // Tree is a radix tree for IPv4 and IPv6 networks.
 type Tree struct {
 	root32 *numtree.Node32
@@ -86,6 +91,11 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 	return t
 }
 
+// InsertIP inserts value using given IP address as a key. The method returns new tree (old one remains unaffected).
+func (t *Tree) InsertIP(ip net.IP, value interface{}) *Tree {
+	return t.InsertNet(newIPNetFromIP(ip), value)
+}
+
 // Enumerate returns channel which is populated by key-value pairs of tree content.
 func (t *Tree) Enumerate() chan Pair {
 	ch := make(chan Pair)
@@ -135,7 +145,12 @@ func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	return nil, false
 }
 
-// DeleteByNet removes subtree which is contained by given network. The method returns new tree (old one remains unaffected) and flag indicating if deletion is happend indeed.
+// GetByIP gets value for network which is equal to or contains given IP address.
+func (t *Tree) GetByIP(ip net.IP) (interface{}, bool) {
+	return t.GetByNet(newIPNetFromIP(ip))
+}
+
+// DeleteByNet removes subtree which is contained by given network. The method returns new tree (old one remains unaffected) and flag indicating if deletion happens indeed.
 func (t *Tree) DeleteByNet(n *net.IPNet) (*Tree, bool) {
 	if t == nil || n == nil {
 		return t, false
@@ -175,6 +190,11 @@ func (t *Tree) DeleteByNet(n *net.IPNet) (*Tree, bool) {
 	}
 
 	return t, false
+}
+
+// DeleteByIP removes node by given IP address. The method returns new tree (old one remains unaffected) and flag indicating if deletion happens indeed.
+func (t *Tree) DeleteByIP(ip net.IP) (*Tree, bool) {
+	return t.DeleteByNet(newIPNetFromIP(ip))
 }
 
 func (t *Tree) enumerate(ch chan Pair) {
@@ -267,4 +287,16 @@ func unpackUint64ToIP(x uint64) net.IP {
 		byte(x >> 16 & 0xff),
 		byte(x >> 8 & 0xff),
 		byte(x & 0xff)}
+}
+
+func newIPNetFromIP(ip net.IP) *net.IPNet {
+	if ip4 := ip.To4(); ip4 != nil {
+		return &net.IPNet{IP: ip4, Mask: iPv4MaxMask}
+	}
+
+	if ip6 := ip.To16(); ip6 != nil {
+		return &net.IPNet{IP: ip6, Mask: iPv6MaxMask}
+	}
+
+	return nil
 }
