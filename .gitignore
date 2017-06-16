@@ -1,3 +1,9 @@
+# Vim swap files
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
+
 # Binaries for programs and plugins
 *.exe
 *.dll
