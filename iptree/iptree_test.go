@@ -152,6 +152,78 @@ func TestGetByNet(t *testing.T) {
 	assertResult(v, ok, "test 2.1", fmt.Sprintf("%s", n6), t)
 }
 
+func TestDeleteByNet(t *testing.T) {
+	var r *Tree
+
+	_, n4, _ := net.ParseCIDR("192.0.2.0/24")
+	r, ok := r.DeleteByNet(n4)
+	if ok {
+		t.Errorf("Expected no deletion in empty tree but got one")
+	}
+
+	r = r.InsertNet(n4, "test 1")
+
+	_, n6Short1, _ := net.ParseCIDR("2001:db8::/32")
+	r = r.InsertNet(n6Short1, "test 2.1")
+
+	_, n6Short2, _ := net.ParseCIDR("2001:db8:1::/48")
+	r = r.InsertNet(n6Short2, "test 2.2")
+
+	_, n6Long1, _ := net.ParseCIDR("2001:db8:0:0:0:ff::/96")
+	r = r.InsertNet(n6Long1, "test 3.1")
+
+	_, n6Long2, _ := net.ParseCIDR("2001:db8:0:0:0:fe::/96")
+	r = r.InsertNet(n6Long2, "test 3.2")
+
+	r, ok = r.DeleteByNet(nil)
+	if ok {
+		t.Errorf("Expected no deletion by nil network but got one")
+	}
+
+	r, ok = r.DeleteByNet(&net.IPNet{IP: nil, Mask: nil})
+	if ok {
+		t.Errorf("Expected no deletion by invalid network but got one")
+	}
+
+	r, ok = r.DeleteByNet(n6Long2)
+	if !ok {
+		t.Errorf("Expected deletion by %s but got nothing", n6Long2)
+	}
+
+	r, ok = r.DeleteByNet(n6Long1)
+	if !ok {
+		t.Errorf("Expected deletion by %s but got nothing", n6Long1)
+	}
+
+	v, ok := r.root64.ExactMatch(0x20010db800000000, 64)
+	if ok {
+		t.Errorf("Expected no subtree node at 0x%016x, %d after deleting all long mask addresses but got %#v",
+			0x20010db800000000, 64, v)
+	}
+
+	r, ok = r.DeleteByNet(n6Short2)
+	if !ok {
+		t.Errorf("Expected deletion by %s but got nothing", n6Short2)
+	}
+
+	r, ok = r.DeleteByNet(n6Short1)
+	if !ok {
+		t.Errorf("Expected deletion by %s but got nothing", n6Short1)
+	}
+
+	r, ok = r.DeleteByNet(n4)
+	if !ok {
+		t.Errorf("Expected deletion by %s but got nothing", n4)
+	}
+
+	if r.root32 != nil || r.root64 != nil {
+		t.Errorf("Expected expected empty tree at the end but have root32: %#v and root64: %#v", r.root32, r.root64)
+	}
+
+	r.root64 = r.root64.Insert(0x20010db800000000, 64, "panic")
+	assertPanic(func() { r.DeleteByNet(n6Long1) }, "deletion from invalid tree", t)
+}
+
 func TestIPv4NetToUint32(t *testing.T) {
 	_, n, _ := net.ParseCIDR("192.0.2.0/24")
 	key, bits := iPv4NetToUint32(n)

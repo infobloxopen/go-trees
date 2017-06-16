@@ -32,27 +32,43 @@ func NewTree() *Tree {
 	return &Tree{}
 }
 
-// InsertNet inserts value using given network as a key.
+// InsertNet inserts value using given network as a key. The method returns new tree (old one remains unaffected).
 func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 	if n == nil {
 		return t
 	}
 
 	if key, bits := iPv4NetToUint32(n); bits >= 0 {
-		return &Tree{
-			root32: t.root32.Insert(key, bits, value),
-			root64: t.root64}
+		var (
+			r32 *numtree.Node32
+			r64 *numtree.Node64
+		)
+
+		if t != nil {
+			r32 = t.root32
+			r64 = t.root64
+		}
+
+		return &Tree{root32: r32.Insert(key, bits, value), root64: r64}
 	}
 
 	if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
+		var (
+			r32 *numtree.Node32
+			r64 *numtree.Node64
+		)
+
+		if t != nil {
+			r32 = t.root32
+			r64 = t.root64
+		}
+
 		if MSBits < numtree.Key64BitSize {
-			return &Tree{
-				root32: t.root32,
-				root64: t.root64.Insert(MSKey, MSBits, value)}
+			return &Tree{root32: r32, root64: r64.Insert(MSKey, MSBits, value)}
 		}
 
 		var r *numtree.Node64
-		if v, ok := t.root64.ExactMatch(MSKey, MSBits); ok {
+		if v, ok := r64.ExactMatch(MSKey, MSBits); ok {
 			s, ok := v.(subTree64)
 			if !ok {
 				err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
@@ -64,9 +80,7 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 		}
 
 		r = r.Insert(LSKey, LSBits, value)
-		return &Tree{
-			root32: t.root32,
-			root64: t.root64.Insert(MSKey, MSBits, subTree64(r))}
+		return &Tree{root32: r32, root64: r64.Insert(MSKey, MSBits, subTree64(r))}
 	}
 
 	return t
@@ -91,7 +105,7 @@ func (t *Tree) Enumerate() chan Pair {
 
 // GetByNet gets value for network which is equal to or contains given network.
 func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
-	if n == nil {
+	if t == nil || n == nil {
 		return nil, false
 	}
 
@@ -119,6 +133,48 @@ func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	}
 
 	return nil, false
+}
+
+// DeleteByNet removes subtree which is contained by given network. The method returns new tree (old one remains unaffected) and flag indicating if deletion is happend indeed.
+func (t *Tree) DeleteByNet(n *net.IPNet) (*Tree, bool) {
+	if t == nil || n == nil {
+		return t, false
+	}
+
+	if key, bits := iPv4NetToUint32(n); bits >= 0 {
+		r, ok := t.root32.Delete(key, bits)
+		if ok {
+			return &Tree{root32: r, root64: t.root64}, true
+		}
+	} else if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
+		r64 := t.root64
+		if MSBits < numtree.Key64BitSize {
+			r64, ok := r64.Delete(MSKey, MSBits)
+			if ok {
+				return &Tree{root32: t.root32, root64: r64}, true
+			}
+		} else if v, ok := r64.ExactMatch(MSKey, MSBits); ok {
+			s, ok := v.(subTree64)
+			if !ok {
+				err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
+					MSKey, MSBits, v, v)
+				panic(err)
+			}
+
+			r, ok := (*numtree.Node64)(s).Delete(LSKey, LSBits)
+			if ok {
+				if r == nil {
+					r64, _ = r64.Delete(MSKey, MSBits)
+				} else {
+					r64 = r64.Insert(MSKey, MSBits, subTree64(r))
+				}
+
+				return &Tree{root32: t.root32, root64: r64}, true
+			}
+		}
+	}
+
+	return t, false
 }
 
 func (t *Tree) enumerate(ch chan Pair) {
