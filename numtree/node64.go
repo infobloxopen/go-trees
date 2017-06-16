@@ -193,12 +193,12 @@ func (n *Node64) insert(c *Node64) *Node64 {
 }
 
 func (n *Node64) enumerate(ch chan *Node64) {
-	if n.chld[0] != nil {
-		n.chld[0].enumerate(ch)
-	}
-
 	if n.Leaf {
 		ch <- n
+	}
+
+	if n.chld[0] != nil {
+		n.chld[0].enumerate(ch)
 	}
 
 	if n.chld[1] != nil {

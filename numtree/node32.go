@@ -221,12 +221,12 @@ func (n *Node32) insert(c *Node32) *Node32 {
 
 func (n *Node32) enumerate(ch chan *Node32) {
 	// Implemented by depth-first search.
-	if n.chld[0] != nil {
-		n.chld[0].enumerate(ch)
-	}
-
 	if n.Leaf {
 		ch <- n
+	}
+
+	if n.chld[0] != nil {
+		n.chld[0].enumerate(ch)
 	}
 
 	if n.chld[1] != nil {

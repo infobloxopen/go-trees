@@ -3,6 +3,7 @@ package iptree
 import (
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/infobloxopen/go-trees/numtree"
@@ -60,6 +61,52 @@ func TestInsertNet(t *testing.T) {
 	invR.root64 = invR.root64.Insert(0x20010db800000000, 64, "test")
 	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:ff::/96")
 	assertPanic(func() { invR.InsertNet(n, "panic") }, "inserting to invalid IPv6 tree", t)
+}
+
+func (p Pair) String() string {
+	s, ok := p.Value.(string)
+	if ok {
+		return fmt.Sprintf("%s: %q", p.Key, s)
+	}
+
+	return fmt.Sprintf("%s: %T (%#v)", p.Key, p.Value, p.Value)
+}
+
+func TestEnumerate(t *testing.T) {
+	var r *Tree
+
+	for p := range r.Enumerate() {
+		t.Errorf("Expected no nodes in empty tree but got at least one: %s", p)
+		break
+	}
+
+	r = NewTree()
+
+	_, n, _ := net.ParseCIDR("192.0.2.0/24")
+	r = r.InsertNet(n, "test 1")
+
+	_, n, _ = net.ParseCIDR("2001:db8::/32")
+	r = r.InsertNet(n, "test 2.1")
+
+	_, n, _ = net.ParseCIDR("2001:db8:1::/48")
+	r = r.InsertNet(n, "test 2.2")
+
+	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:ff::/96")
+	r = r.InsertNet(n, "test 3")
+
+	items := []string{}
+	for p := range r.Enumerate() {
+		items = append(items, p.String())
+	}
+
+	s := strings.Join(items, ", ")
+	e := "192.0.2.0/24: \"test 1\", " +
+		"2001:db8::/32: \"test 2.1\", " +
+		"2001:db8::ff:0:0/96: \"test 3\", " +
+		"2001:db8:1::/48: \"test 2.2\""
+	if s != e {
+		t.Errorf("Expected following nodes %q but got %q", e, s)
+	}
 }
 
 func TestGetByNet(t *testing.T) {

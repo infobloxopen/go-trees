@@ -19,6 +19,12 @@ type Tree struct {
 	root64 *numtree.Node64
 }
 
+// Pair represents a key-value pair returned by Enumerate method.
+type Pair struct {
+	Key   *net.IPNet
+	Value interface{}
+}
+
 type subTree64 *numtree.Node64
 
 // NewTree creates empty tree.
@@ -66,6 +72,23 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 	return t
 }
 
+// Enumerate returns channel which is populated by key-value pairs of tree content.
+func (t *Tree) Enumerate() chan Pair {
+	ch := make(chan Pair)
+
+	go func() {
+		defer close(ch)
+
+		if t == nil {
+			return
+		}
+
+		t.enumerate(ch)
+	}()
+
+	return ch
+}
+
 // GetByNet gets value for network which is equal to or contains given network.
 func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	if n == nil {
@@ -98,6 +121,39 @@ func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	return nil, false
 }
 
+func (t *Tree) enumerate(ch chan Pair) {
+	for n := range t.root32.Enumerate() {
+		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
+		ch <- Pair{
+			Key: &net.IPNet{
+				IP:   unpackUint32ToIP(n.Key).Mask(mask),
+				Mask: mask},
+			Value: n.Value}
+	}
+
+	for n := range t.root64.Enumerate() {
+		MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
+		if s, ok := n.Value.(subTree64); ok {
+			for n := range (*numtree.Node64)(s).Enumerate() {
+				LSIP := unpackUint64ToIP(n.Key)
+				mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+				ch <- Pair{
+					Key: &net.IPNet{
+						IP:   append(MSIP[0:8], LSIP...).Mask(mask),
+						Mask: mask},
+					Value: n.Value}
+			}
+		} else {
+			mask := net.CIDRMask(int(n.Bits), iPv6Bits)
+			ch <- Pair{
+				Key: &net.IPNet{
+					IP:   MSIP.Mask(mask),
+					Mask: mask},
+				Value: n.Value}
+		}
+	}
+}
+
 func iPv4NetToUint32(n *net.IPNet) (uint32, int) {
 	if len(n.IP) != net.IPv4len {
 		return 0, -1
@@ -108,7 +164,15 @@ func iPv4NetToUint32(n *net.IPNet) (uint32, int) {
 		return 0, -1
 	}
 
-	return (uint32(n.IP[0]) << 24) | (uint32(n.IP[1]) << 16) | (uint32(n.IP[2]) << 8) | uint32(n.IP[3]), ones
+	return packIPToUint32(n.IP), ones
+}
+
+func packIPToUint32(x net.IP) uint32 {
+	return (uint32(x[0]) << 24) | (uint32(x[1]) << 16) | (uint32(x[2]) << 8) | uint32(x[3])
+}
+
+func unpackUint32ToIP(x uint32) net.IP {
+	return net.IP{byte(x >> 24 & 0xff), byte(x >> 16 & 0xff), byte(x >> 8 & 0xff), byte(x & 0xff)}
 }
 
 func iPv6NetToUint64Pair(n *net.IPNet) (uint64, int, uint64, int) {
@@ -135,4 +199,16 @@ func iPv6NetToUint64Pair(n *net.IPNet) (uint64, int, uint64, int) {
 func packIPToUint64(x net.IP) uint64 {
 	return (uint64(x[0]) << 56) | (uint64(x[1]) << 48) | (uint64(x[2]) << 40) | (uint64(x[3]) << 32) |
 		(uint64(x[4]) << 24) | (uint64(x[5]) << 16) | (uint64(x[6]) << 8) | uint64(x[7])
+}
+
+func unpackUint64ToIP(x uint64) net.IP {
+	return net.IP{
+		byte(x >> 56 & 0xff),
+		byte(x >> 48 & 0xff),
+		byte(x >> 40 & 0xff),
+		byte(x >> 32 & 0xff),
+		byte(x >> 24 & 0xff),
+		byte(x >> 16 & 0xff),
+		byte(x >> 8 & 0xff),
+		byte(x & 0xff)}
 }
