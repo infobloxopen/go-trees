@@ -2,7 +2,8 @@ package numtree
 
 import "fmt"
 
-const key32BitSize = 32
+// Key32BitSize is an alias for bitsize of 32-bit radix tree's key.
+const Key32BitSize = 32
 
 var (
 	masks32 = []uint32{
@@ -60,8 +61,8 @@ func (n *Node32) Insert(key uint32, bits int, value interface{}) *Node32 {
 	// Adjust bits.
 	if bits < 0 {
 		bits = 0
-	} else if bits > key32BitSize {
-		bits = key32BitSize
+	} else if bits > Key32BitSize {
+		bits = Key32BitSize
 	}
 
 	return n.insert(newNode32(key, uint8(bits), true, value))
@@ -97,8 +98,8 @@ func (n *Node32) Match(key uint32, bits int) (interface{}, bool) {
 	// Adjust bits.
 	if bits < 0 {
 		bits = 0
-	} else if bits > key32BitSize {
-		bits = key32BitSize
+	} else if bits > Key32BitSize {
+		bits = Key32BitSize
 	}
 
 	r := n.match(key, uint8(bits))
@@ -120,8 +121,8 @@ func (n *Node32) ExactMatch(key uint32, bits int) (interface{}, bool) {
 	// Adjust bits.
 	if bits < 0 {
 		bits = 0
-	} else if bits > key32BitSize {
-		bits = key32BitSize
+	} else if bits > Key32BitSize {
+		bits = Key32BitSize
 	}
 
 	r := n.exactMatch(key, uint8(bits))
@@ -143,8 +144,8 @@ func (n *Node32) Delete(key uint32, bits int) (*Node32, bool) {
 	// Adjust bits.
 	if bits < 0 {
 		bits = 0
-	} else if bits > key32BitSize {
-		bits = key32BitSize
+	} else if bits > Key32BitSize {
+		bits = Key32BitSize
 	}
 
 	return n.del(key, uint8(bits))
@@ -178,7 +179,7 @@ func (n *Node32) insert(c *Node32) *Node32 {
 	// - NCSB less than number of significant bits (NSB) of current tree node:
 	if bits < n.Bits {
 		// (branch for current tree node is determined by a bit right after the last common bit)
-		branch := (n.Key >> (key32BitSize - 1 - bits)) & 1
+		branch := (n.Key >> (Key32BitSize - 1 - bits)) & 1
 
 		// - NCSB equals to NSB of candidate node:
 		if bits == c.Bits {
@@ -211,7 +212,7 @@ func (n *Node32) insert(c *Node32) *Node32 {
 	m.chld = n.chld
 
 	// (branch for the candidate is determined by a bit right after the last common bit)
-	branch := (c.Key >> (key32BitSize - 1 - bits)) & 1
+	branch := (c.Key >> (Key32BitSize - 1 - bits)) & 1
 	// insert it to correct branch.
 	m.chld[branch] = m.chld[branch].insert(c)
 
@@ -220,12 +221,12 @@ func (n *Node32) insert(c *Node32) *Node32 {
 
 func (n *Node32) enumerate(ch chan *Node32) {
 	// Implemented by depth-first search.
-	if n.chld[0] != nil {
-		n.chld[0].enumerate(ch)
-	}
-
 	if n.Leaf {
 		ch <- n
+	}
+
+	if n.chld[0] != nil {
+		n.chld[0].enumerate(ch)
 	}
 
 	if n.chld[1] != nil {
@@ -257,7 +258,7 @@ func (n *Node32) match(key uint32, bits uint8) *Node32 {
 	}
 
 	// Otherwise jump to branch by key bit right after NSB of current tree node
-	c := n.chld[(key>>(key32BitSize-1-n.Bits))&1]
+	c := n.chld[(key>>(Key32BitSize-1-n.Bits))&1]
 	if c != nil {
 		// and check if child on the branch has anything.
 		r := c.match(key, bits)
@@ -298,7 +299,7 @@ func (n *Node32) exactMatch(key uint32, bits uint8) *Node32 {
 	}
 
 	// Otherwise jump to branch by key bit right after NSB of current tree node
-	c := n.chld[(key>>(key32BitSize-1-n.Bits))&1]
+	c := n.chld[(key>>(Key32BitSize-1-n.Bits))&1]
 	if c != nil {
 		// and check if child on the branch has anything.
 		r := c.exactMatch(key, bits)
@@ -328,7 +329,7 @@ func (n *Node32) del(key uint32, bits uint8) (*Node32, bool) {
 	}
 
 	// Otherwise jump to branch by key bit right after NSB of current tree node
-	branch := (key >> (key32BitSize - 1 - n.Bits)) & 1
+	branch := (key >> (Key32BitSize - 1 - n.Bits)) & 1
 	c := n.chld[branch]
 	if c == nil {
 		// report nothing if the branch is empty.
@@ -384,5 +385,5 @@ func clz32(x uint32) uint8 {
 		x <<= 4
 	}
 
-	return n + clzTable[x>>(key32BitSize-4)]
+	return n + clzTable[x>>(Key32BitSize-4)]
 }

@@ -101,10 +101,10 @@ func TestEnumerate64(t *testing.T) {
 	ch = r.Enumerate()
 	assertSequence64(ch, t, "64-tree for enumeration",
 		"0xa8aaaaaa00000000/9: \"L2.1\"",
+		"0xaaaaaaaa00000000/7: \"L1\"",
 		"0xaaaaaaaa00000000/18: \"L3\"",
 		"0xaaabaaaa00000000/24: \"L5\"",
 		"0xaabaaaaa00000000/19: \"L4\"",
-		"0xaaaaaaaa00000000/7: \"L1\"",
 		"0xabaaaaaa00000000/9: \"L2.2\"")
 }
 
