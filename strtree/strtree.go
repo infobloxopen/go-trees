@@ -8,7 +8,7 @@ type Compare func(a, b string) int
 
 // Tree is a red-black tree for key-value pairs where key is string.
 type Tree struct {
-	root    node
+	root    *node
 	compare Compare
 }
 
@@ -22,7 +22,39 @@ func NewTreeWithCustomComparison(compare Compare) *Tree {
 	return &Tree{compare: compare}
 }
 
+// Insert puts given key-value pair to the tree and returns pointer to new root.
+func (t *Tree) Insert(key string, value interface{}) *Tree {
+	var (
+		n *node
+		c Compare
+	)
+
+	if t == nil {
+		c = strings.Compare
+	} else {
+		n = t.root
+		c = t.compare
+	}
+
+	return &Tree{root: n.insert(key, value, c), compare: c}
+}
+
+// Get returns value by given key.
+func (t *Tree) Get(key string) (interface{}, bool) {
+	if t == nil {
+		return nil, false
+	}
+
+	return t.root.get(key, t.compare)
+}
+
 // Dot dumps tree to Graphviz .dot format.
 func (t *Tree) Dot() string {
-	return "digraph d {\n}\n"
+	body := ""
+
+	if t != nil {
+		body = t.root.dot()
+	}
+
+	return "digraph d {\n" + body + "}\n"
 }
