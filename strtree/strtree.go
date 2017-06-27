@@ -71,6 +71,17 @@ func (t *Tree) Enumerate() chan Pair {
 	return ch
 }
 
+// Delete removes node by given key. It returns copy of tree and true if node has been indeed deleted otherwise original tree and false.
+func (t *Tree) Delete(key string) (*Tree, bool) {
+	if t == nil {
+		return nil, false
+	}
+
+	c := t.compare
+	root, ok := t.root.del(key, c)
+	return &Tree{root: root, compare: c}, ok
+}
+
 // Dot dumps tree to Graphviz .dot format.
 func (t *Tree) Dot() string {
 	body := ""

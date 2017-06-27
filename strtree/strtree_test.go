@@ -257,6 +257,109 @@ func TestEnumerate(t *testing.T) {
 		"\"4\": \"test-4\"\n")
 }
 
+func TestDelete(t *testing.T) {
+	var r *Tree
+
+	r, ok := r.Delete("test")
+	if ok {
+		t.Errorf("Expected nothing to be deleted from empty tree but something has been deleted:\n%s", r.Dot())
+	}
+
+	r = NewTree()
+	r = r.Insert("0", nil)
+	r = r.Insert("3", nil)
+	r = r.Insert("6", nil)
+	r = r.Insert("9", nil)
+	r = r.Insert("C", nil)
+	r = r.Insert("F", nil)
+	r = r.Insert("1", nil)
+	r = r.Insert("2", nil)
+	r = r.Insert("4", nil)
+	r = r.Insert("5", nil)
+	r = r.Insert("7", nil)
+	r = r.Insert("8", nil)
+	r = r.Insert("A", nil)
+	r = r.Insert("B", nil)
+	r = r.Insert("D", nil)
+	r = r.Insert("E", nil)
+
+	r, ok = r.Delete("81")
+	if ok {
+		t.Errorf("Expected nothing to be deleted by key \"81\" but something has been deleted")
+	}
+	assertTree(r, TestTreeAfterNonExistingNodeDel, "tree after non-existing node deletion", t)
+
+	r, ok = r.Delete("6")
+	if !ok {
+		t.Errorf("Expected node \"6\" to be deleted but got nothing")
+	}
+	assertTree(r, TestTreeAfterNode6Deletion, "tree after node 6 deletion", t)
+
+	r, ok = r.Delete("7")
+	if !ok {
+		t.Errorf("Expected node \"7\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("8")
+	if !ok {
+		t.Errorf("Expected node \"8\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("5")
+	if !ok {
+		t.Errorf("Expected node \"5\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("9")
+	if !ok {
+		t.Errorf("Expected node \"9\" to be deleted but got nothing")
+	}
+	assertTree(r, TestTreeAfterNodes7859Deletion, "tree after nodes 7, 8, 5 and 9 deletion", t)
+
+	r, ok = r.Delete("C")
+	if !ok {
+		t.Errorf("Expected node \"C\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("E")
+	if !ok {
+		t.Errorf("Expected node \"E\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("D")
+	if !ok {
+		t.Errorf("Expected node \"D\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("A")
+	if !ok {
+		t.Errorf("Expected node \"A\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("B")
+	if !ok {
+		t.Errorf("Expected node \"B\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("4")
+	if !ok {
+		t.Errorf("Expected node \"4\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("F")
+	if !ok {
+		t.Errorf("Expected node \"F\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("0")
+	if !ok {
+		t.Errorf("Expected node \"0\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("3")
+	if !ok {
+		t.Errorf("Expected node \"3\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("1")
+	if !ok {
+		t.Errorf("Expected node \"1\" to be deleted but got nothing")
+	}
+	r, ok = r.Delete("2")
+	if !ok {
+		t.Errorf("Expected node \"2\" to be deleted but got nothing")
+	}
+	assertTree(r, TestEmptyTree, "tree after rest nodes deletion", t)
+}
+
 const (
 	TestEmptyTree = `digraph d {
 N0 [label="nil" style=filled fontcolor=white fillcolor=black]
@@ -482,6 +585,87 @@ N30 [label="1E" style=filled fontcolor=white fillcolor=black]
 N30 -> { N31 N32 }
 N31 [label="1D" style=filled fillcolor=red]
 N32 [label="1F" style=filled fillcolor=red]
+}
+`
+
+	TestTreeAfterNonExistingNodeDel = `digraph d {
+N0 [label="5" style=filled fontcolor=white fillcolor=black]
+N0 -> { N1 N2 }
+N1 [label="3" style=filled fontcolor=white fillcolor=black]
+N1 -> { N3 N4 }
+N2 [label="C" style=filled fontcolor=white fillcolor=black]
+N2 -> { N5 N6 }
+N3 [label="1" style=filled fontcolor=white fillcolor=black]
+N3 -> { N7 N8 }
+N4 [label="4" style=filled fontcolor=white fillcolor=black]
+N5 [label="9" style=filled fillcolor=red]
+N5 -> { N9 N10 }
+N6 [label="E" style=filled fontcolor=white fillcolor=black]
+N6 -> { N11 N12 }
+N7 [label="0" style=filled fillcolor=red]
+N8 [label="2" style=filled fillcolor=red]
+N9 [label="7" style=filled fontcolor=white fillcolor=black]
+N9 -> { N13 N14 }
+N10 [label="A" style=filled fontcolor=white fillcolor=black]
+N10 -> { N15 N16 }
+N11 [label="D" style=filled fillcolor=red]
+N12 [label="F" style=filled fillcolor=red]
+N13 [label="6" style=filled fillcolor=red]
+N14 [label="8" style=filled fillcolor=red]
+N15 [label="nil" style=filled fontcolor=white fillcolor=black]
+N16 [label="B" style=filled fillcolor=red]
+}
+`
+
+	TestTreeAfterNode6Deletion = `digraph d {
+N0 [label="5" style=filled fontcolor=white fillcolor=black]
+N0 -> { N1 N2 }
+N1 [label="3" style=filled fontcolor=white fillcolor=black]
+N1 -> { N3 N4 }
+N2 [label="C" style=filled fontcolor=white fillcolor=black]
+N2 -> { N5 N6 }
+N3 [label="1" style=filled fontcolor=white fillcolor=black]
+N3 -> { N7 N8 }
+N4 [label="4" style=filled fontcolor=white fillcolor=black]
+N5 [label="9" style=filled fillcolor=red]
+N5 -> { N9 N10 }
+N6 [label="E" style=filled fontcolor=white fillcolor=black]
+N6 -> { N11 N12 }
+N7 [label="0" style=filled fillcolor=red]
+N8 [label="2" style=filled fillcolor=red]
+N9 [label="7" style=filled fontcolor=white fillcolor=black]
+N9 -> { N13 N14 }
+N10 [label="A" style=filled fontcolor=white fillcolor=black]
+N10 -> { N15 N16 }
+N11 [label="D" style=filled fillcolor=red]
+N12 [label="F" style=filled fillcolor=red]
+N13 [label="nil" style=filled fontcolor=white fillcolor=black]
+N14 [label="8" style=filled fillcolor=red]
+N15 [label="nil" style=filled fontcolor=white fillcolor=black]
+N16 [label="B" style=filled fillcolor=red]
+}
+`
+
+	TestTreeAfterNodes7859Deletion = `digraph d {
+N0 [label="A" style=filled fontcolor=white fillcolor=black]
+N0 -> { N1 N2 }
+N1 [label="2" style=filled fontcolor=white fillcolor=black]
+N1 -> { N3 N4 }
+N2 [label="C" style=filled fontcolor=white fillcolor=black]
+N2 -> { N5 N6 }
+N3 [label="1" style=filled fontcolor=white fillcolor=black]
+N3 -> { N7 N8 }
+N4 [label="4" style=filled fontcolor=white fillcolor=black]
+N4 -> { N9 N10 }
+N5 [label="B" style=filled fontcolor=white fillcolor=black]
+N6 [label="E" style=filled fontcolor=white fillcolor=black]
+N6 -> { N11 N12 }
+N7 [label="0" style=filled fillcolor=red]
+N8 [label="nil" style=filled fontcolor=white fillcolor=black]
+N9 [label="3" style=filled fillcolor=red]
+N10 [label="nil" style=filled fontcolor=white fillcolor=black]
+N11 [label="D" style=filled fillcolor=red]
+N12 [label="F" style=filled fillcolor=red]
 }
 `
 )

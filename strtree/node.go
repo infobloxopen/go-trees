@@ -59,14 +59,11 @@ func (n *node) dotString() string {
 
 func (n *node) insert(key string, value interface{}, compare Compare) *node {
 	if n == nil {
-		return &node{
-			key:   key,
-			value: value,
-			red:   false}
+		return &node{key: key, value: value}
 	}
 
 	// Using fake root to get rid of corner cases with rotation right under the root.
-	root := &node{key: "fake", chld: [2]*node{nil, n}, red: false}
+	root := &node{chld: [2]*node{nil, n}}
 	dir := dirLeft
 
 	// Nodes down the path to current node. All these nodes are copies of nodes from tree.
@@ -236,4 +233,109 @@ func (n *node) enumerate(ch chan Pair) {
 	ch <- Pair{Key: n.key, Value: n.value}
 
 	n.chld[dirRight].enumerate(ch)
+}
+
+func (n *node) del(key string, compare Compare) (*node, bool) {
+	// Fake root.
+	root := &node{chld: [2]*node{nil, n}}
+
+	// Nodes down the path to current node.
+	var (
+		// Grandparent.
+		g *node
+
+		// Parent.
+		p *node
+
+		// Target node.
+		t *node
+	)
+
+	n = root
+
+	// Direction from current node to next child we need to go.
+	dir := dirRight
+	for n.chld[dir] != nil {
+		// Direction from parent to current node.
+		pDir := dir
+
+		g = p
+		p = n
+		n.chld[dir] = n.chld[dir].fullCopy()
+		n = n.chld[dir]
+
+		dir = dirLeft
+		r := compare(n.key, key)
+		if r < 0 {
+			dir = dirRight
+		}
+
+		if r == 0 {
+			t = n
+		}
+
+		if !n.red && (n.chld[dir] == nil || !n.chld[dir].red) {
+			nDir := 1 - dir
+			if n.chld[nDir] != nil && n.chld[nDir].red {
+				n.chld[nDir] = n.chld[nDir].fullCopy()
+				p.chld[pDir] = n.single(nDir)
+				p = p.chld[pDir]
+			} else {
+				nPDir := 1 - pDir
+				s := p.chld[nPDir]
+				if s != nil {
+					s = s.fullCopy()
+					p.chld[nPDir] = s
+					if (s.chld[dirLeft] == nil || !s.chld[dirLeft].red) &&
+						(s.chld[dirRight] == nil || !s.chld[dirRight].red) {
+						p.red = false
+						n.red = true
+						s.red = true
+					} else {
+						// Direction from grandparent to parent.
+						gpDir := dirLeft
+						if g.chld[dirRight] == p {
+							gpDir = dirRight
+						}
+
+						if s.chld[pDir] != nil && s.chld[pDir].red {
+							s.chld[pDir] = s.chld[pDir].fullCopy()
+							g.chld[gpDir] = p.double(nPDir)
+						} else {
+							s.chld[nPDir] = s.chld[nPDir].fullCopy()
+							g.chld[gpDir] = p.single(nPDir)
+						}
+
+						n.red = true
+						g.chld[gpDir].red = true
+						g.chld[gpDir].chld[dirLeft].red = false
+						g.chld[gpDir].chld[dirRight].red = false
+					}
+				}
+			}
+		}
+	}
+
+	if t != nil {
+		t.key = n.key
+		t.value = n.value
+
+		dir = dirLeft
+		if p.chld[dirRight] == n {
+			dir = dirRight
+		}
+
+		chldDir := dirLeft
+		if n.chld[dirLeft] == nil {
+			chldDir = dirRight
+		}
+
+		p.chld[dir] = n.chld[chldDir]
+	}
+
+	n = root.chld[dirRight]
+	if n != nil {
+		n.red = false
+	}
+	return n, t != nil
 }
