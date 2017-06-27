@@ -225,3 +225,15 @@ func (n *node) get(key string, compare Compare) (interface{}, bool) {
 
 	return nil, false
 }
+
+func (n *node) enumerate(ch chan Pair) {
+	if n == nil {
+		return
+	}
+
+	n.chld[dirLeft].enumerate(ch)
+
+	ch <- Pair{Key: n.key, Value: n.value}
+
+	n.chld[dirRight].enumerate(ch)
+}

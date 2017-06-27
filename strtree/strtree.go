@@ -12,6 +12,12 @@ type Tree struct {
 	compare Compare
 }
 
+// Pair is a key-value pair representing tree node content.
+type Pair struct {
+	Key   string
+	Value interface{}
+}
+
 // NewTree creates empty tree with default comparison operation (strings.Compare).
 func NewTree() *Tree {
 	return &Tree{compare: strings.Compare}
@@ -46,6 +52,23 @@ func (t *Tree) Get(key string) (interface{}, bool) {
 	}
 
 	return t.root.get(key, t.compare)
+}
+
+// Enumerate returns channel which is populated by key pair values in order of keys.
+func (t *Tree) Enumerate() chan Pair {
+	ch := make(chan Pair)
+
+	go func() {
+		defer close(ch)
+
+		if t == nil {
+			return
+		}
+
+		t.root.enumerate(ch)
+	}()
+
+	return ch
 }
 
 // Dot dumps tree to Graphviz .dot format.

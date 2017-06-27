@@ -238,6 +238,25 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestEnumerate(t *testing.T) {
+	var r *Tree
+
+	assertEnumerate(r.Enumerate(), "empty tree", t)
+
+	r = NewTree()
+	r = r.Insert("1", "test-1")
+	r = r.Insert("0", "test-0")
+	r = r.Insert("4", "test-4")
+	r = r.Insert("2", "test-2")
+	r = r.Insert("3", "test-3")
+	assertEnumerate(r.Enumerate(), "enumeration of tree 10423", t,
+		"\"0\": \"test-0\"\n",
+		"\"1\": \"test-1\"\n",
+		"\"2\": \"test-2\"\n",
+		"\"3\": \"test-3\"\n",
+		"\"4\": \"test-4\"\n")
+}
+
 const (
 	TestEmptyTree = `digraph d {
 N0 [label="nil" style=filled fontcolor=white fillcolor=black]
@@ -469,6 +488,20 @@ N32 [label="1F" style=filled fillcolor=red]
 
 func assertTree(r *Tree, e, desc string, t *testing.T) {
 	assertStringLists(difflib.SplitLines(r.Dot()), difflib.SplitLines(e), desc, t)
+}
+
+func assertEnumerate(ch chan Pair, desc string, t *testing.T, e ...string) {
+	pairs := []string{}
+	for p := range ch {
+		s, ok := p.Value.(string)
+		if ok {
+			pairs = append(pairs, fmt.Sprintf("%q: %q\n", p.Key, s))
+		} else {
+			pairs = append(pairs, fmt.Sprintf("%q: %T (%#v)\n", p.Key, p.Value, p.Value))
+		}
+	}
+
+	assertStringLists(pairs, e, desc, t)
 }
 
 func assertStringLists(v, e []string, desc string, t *testing.T) {
