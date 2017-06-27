@@ -69,13 +69,13 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 	root := &node{key: "fake", chld: [2]*node{nil, n}, red: false}
 	dir := dirLeft
 
-	// Nodes down the path to current node. All these nodea are copies of nodes from tree.
+	// Nodes down the path to current node. All these nodes are copies of nodes from tree.
 	var (
 		// Grandparent's parent.
-		gpp *node
+		gp *node
 
 		// Grandparent.
-		gp *node
+		g *node
 
 		// Parent.
 		p *node
@@ -100,8 +100,8 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 		}
 
 		// Propagate set of nodes.
-		gpp = gp
-		gp = p
+		gp = g
+		g = p
 		p = n
 		n = n.chld[dir]
 
@@ -119,7 +119,7 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 				n = n.fullCopy()
 			}
 
-			// Color flip case.
+			// Color flip case to maintain invariant that the current node is black and has at least one black child.
 			if n.chld[dirLeft] != nil && n.chld[dirRight] != nil && n.chld[dirLeft].red && n.chld[dirRight].red {
 				n.red = true
 				c = [2]*node{
@@ -134,18 +134,35 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 
 		// Fix red violation.
 		if n.red && p != nil && p.red {
+			// As root is black we can't be here earlier than fake root becomes parent of grandparent.
 			grandParentDir := dirLeft
-			if gpp.chld[dirRight] == gp {
+			if gp.chld[dirRight] == g {
 				grandParentDir = dirRight
 			}
 
 			if n == p.chld[parentDir] {
-				// With single rotation if current node goes in the same direction from parent as parent from grandparent.
-				gpp.chld[grandParentDir] = gp.single(parentDir)
+				// With single rotation if current node goes in the same direction from
+				// parent as parent from grandparent.
+				gp.chld[grandParentDir] = g.single(parentDir)
+
+				// The rotation changes parent and grandparent so during next iteration
+				// grandparent's parent should remain the same. Here we fix grandparent
+				// to keep correct gradparent's parent.
+				g = gp
 			} else {
 				// With double rotation if current node goes in the oposite direction.
-				gpp.chld[grandParentDir] = gp.double(parentDir)
+				gp.chld[grandParentDir] = g.double(parentDir)
+
+				// The rotation puts grandparent and parent as children of current node.
+				// The nodes are copied on previous steps so we put them to to children
+				// array to prevent additional coping at the next step. Also in the next
+				// step grandparent's parent and grandparent iteslf make step back. So we
+				// fix parent to keep correct grandparent but there is no information on
+				// parent of grandparent's parent to keep corrent grandparent's parent.
+				// Luckily after the rotation current node (next parent) becomes black so
+				// we can't make red violation on next iteration.
 				c = n.chld
+				p = gp
 			}
 		}
 
