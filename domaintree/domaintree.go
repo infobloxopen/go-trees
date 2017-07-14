@@ -71,6 +71,27 @@ func (n *Node) Enumerate() chan Pair {
 	return ch
 }
 
+// Get gets value for domain which is equal to domain in the tree or is a subdomain of existing domain.
+func (n *Node) Get(d string) (interface{}, bool) {
+	if n == nil {
+		return nil, false
+	}
+
+	labels := strings.Split(d, ".")
+	for i := len(labels) - 1; i >= 0; i-- {
+		label := labels[i]
+
+		item, ok := n.branches.Get(label)
+		if !ok {
+			break
+		}
+
+		n = item.(*Node)
+	}
+
+	return n.value, n.hasValue
+}
+
 func (n *Node) enumerate(s string, ch chan Pair) {
 	if n == nil {
 		return

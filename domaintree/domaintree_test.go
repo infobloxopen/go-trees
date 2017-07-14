@@ -48,6 +48,31 @@ func TestInsert(t *testing.T) {
 		"\"test.net\": \"3\"\n")
 }
 
+func TestGet(t *testing.T) {
+	var r *Node
+
+	v, ok := r.Get("test.com")
+	assertValue(v, ok, "", false, "fetching from empty tree", t)
+
+	r = r.Insert("com", "1")
+	r = r.Insert("test.com", "2")
+	r = r.Insert("test.net", "3")
+	r = r.Insert("example.com", "4")
+	r = r.Insert("www.test.com", "5")
+
+	v, ok = r.Get("test.com")
+	assertValue(v, ok, "2", true, "fetching \"test.com\" from tree", t)
+
+	v, ok = r.Get("www.test.com")
+	assertValue(v, ok, "5", true, "fetching \"www.test.com\" from tree", t)
+
+	v, ok = r.Get("ns.test.com")
+	assertValue(v, ok, "2", true, "fetching \"ns.test.com\" from tree", t)
+
+	v, ok = r.Get("test.org")
+	assertValue(v, ok, "", false, "fetching \"test.org\" from tree", t)
+}
+
 func assertTree(r *Node, desc string, t *testing.T, e ...string) {
 	pairs := []string{}
 	for p := range r.Enumerate() {
@@ -72,5 +97,29 @@ func assertTree(r *Node, desc string, t *testing.T, e ...string) {
 
 	if len(diff) > 0 {
 		t.Errorf("\"%s\" doesn't match:\n%s", desc, diff)
+	}
+}
+
+func assertValue(v interface{}, vok bool, e string, eok bool, desc string, t *testing.T) {
+	if eok {
+		if vok {
+			s, ok := v.(string)
+			if !ok {
+				t.Errorf("Expected string %q for %s but got %T (%#v)", e, desc, v, v)
+			} else if s != e {
+				t.Errorf("Expected %q for %s but got %q", e, desc, s)
+			}
+		} else {
+			t.Errorf("Expected %q for %s but got nothing", e, desc)
+		}
+	} else {
+		if vok {
+			s, ok := v.(string)
+			if ok {
+				t.Errorf("Expected no value for %s but got %q", desc, s)
+			} else {
+				t.Errorf("Expected no value for %s but got %T (%#v)", desc, v, v)
+			}
+		}
 	}
 }
