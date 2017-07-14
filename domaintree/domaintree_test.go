@@ -12,7 +12,7 @@ func TestInsert(t *testing.T) {
 
 	r1 := r.Insert("com", "1")
 	if r1 == nil {
-		t.Errorf("Expected new tree but got nothing")
+		t.Error("Expected new tree but got nothing")
 	}
 
 	r2 := r1.Insert("test.com", "2")
@@ -71,6 +71,61 @@ func TestGet(t *testing.T) {
 
 	v, ok = r.Get("test.org")
 	assertValue(v, ok, "", false, "fetching \"test.org\" from tree", t)
+}
+
+func TestDelete(t *testing.T) {
+	var r *Node
+
+	r, ok := r.Delete("test.com")
+	if ok {
+		t.Error("Expected no deletion from empty tree but got deleted something")
+	}
+
+	r = r.Insert("com", "1")
+	r = r.Insert("test.com", "2")
+	r = r.Insert("test.net", "3")
+	r = r.Insert("example.com", "4")
+	r = r.Insert("www.test.com", "5")
+	r = r.Insert("www.test.org", "6")
+
+	r, ok = r.Delete("ns.test.com")
+	if ok {
+		t.Error("Expected \"ns.test.com\" to be not deleted as it's absent in the tree")
+	}
+
+	r, ok = r.Delete("test.com")
+	if !ok {
+		t.Error("Expected \"test.com\" to be deleted")
+	}
+
+	r, ok = r.Delete("www.test.com")
+	if ok {
+		t.Error("Expected \"www.test.com\" to be not deleted as it should be deleted with \"test.com\"")
+	}
+
+	r, ok = r.Delete("com")
+	if !ok {
+		t.Error("Expected \"com\" to be deleted")
+	}
+
+	assertTree(r, "tree with no \"com\"", t,
+		"\"test.net\": \"3\"\n",
+		"\"www.test.org\": \"6\"\n")
+
+	r, ok = r.Delete("test.net")
+	if !ok {
+		t.Error("Expected \"test.net\" to be deleted")
+	}
+
+	r, ok = r.Delete("")
+	if !ok {
+		t.Error("Expected not empty tree to be cleaned up")
+	}
+
+	r, ok = r.Delete("")
+	if ok {
+		t.Error("Expected nothing to clean up from empty tree")
+	}
 }
 
 func assertTree(r *Node, desc string, t *testing.T, e ...string) {

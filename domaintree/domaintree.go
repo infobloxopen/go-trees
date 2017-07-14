@@ -92,6 +92,23 @@ func (n *Node) Get(d string) (interface{}, bool) {
 	return n.value, n.hasValue
 }
 
+// Delete removes current domain and all its subdomains if any. It returns new tree and flag if deletion indeed occurs.
+func (n *Node) Delete(d string) (*Node, bool) {
+	if n == nil {
+		return nil, false
+	}
+
+	if len(d) <= 0 {
+		if n.hasValue || !n.branches.IsEmpty() {
+			return &Node{}, true
+		}
+
+		return n, false
+	}
+
+	return n.del(strings.Split(d, "."))
+}
+
 func (n *Node) enumerate(s string, ch chan Pair) {
 	if n == nil {
 		return
@@ -112,4 +129,44 @@ func (n *Node) enumerate(s string, ch chan Pair) {
 
 		node.enumerate(sub, ch)
 	}
+}
+
+func (n *Node) del(labels []string) (*Node, bool) {
+	last := len(labels) - 1
+	label := labels[last]
+	if last == 0 {
+		branches, ok := n.branches.Delete(label)
+		if ok {
+			return &Node{
+				branches: branches,
+				hasValue: n.hasValue,
+				value:    n.value}, true
+		}
+
+		return n, false
+	}
+
+	item, ok := n.branches.Get(label)
+	if !ok {
+		return n, false
+	}
+
+	next := item.(*Node)
+	next, ok = next.del(labels[:last])
+	if !ok {
+		return n, false
+	}
+
+	if next.branches.IsEmpty() && !next.hasValue {
+		branches, _ := n.branches.Delete(label)
+		return &Node{
+			branches: branches,
+			hasValue: n.hasValue,
+			value:    n.value}, true
+	}
+
+	return &Node{
+		branches: n.branches.Insert(label, next),
+		hasValue: n.hasValue,
+		value:    n.value}, true
 }
