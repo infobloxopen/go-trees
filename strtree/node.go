@@ -105,9 +105,8 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 		if n == nil {
 			// If no child in the direction we go insert new red node.
 			n = &node{
-				key:   key,
-				value: value,
-				red:   true}
+				key: key,
+				red: true}
 
 			c = [2]*node{nil, nil}
 		} else {
@@ -165,6 +164,8 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 
 		r = compare(n.key, key)
 	}
+
+	n.value = value
 
 	n = root.chld[dirRight]
 	n.red = false

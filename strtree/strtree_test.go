@@ -203,6 +203,12 @@ func TestInsert(t *testing.T) {
 	r = r.Insert("1D", nil)
 	r = r.Insert("1F", nil)
 	assertTree(r, Test32AlternatingNodeTree, "tree with alternating 32 nodes", t)
+
+	r = nil
+	r = r.Insert("00", "test-1")
+	assertTree(r, TestTreeSameNodeOnce, "tree with same node first insertion", t)
+	r = r.Insert("00", "test-2")
+	assertTree(r, TestTreeSameNodeTwice, "tree with same node second insertion", t)
 }
 
 func TestGet(t *testing.T) {
@@ -666,6 +672,16 @@ N9 [label="3" style=filled fillcolor=red]
 N10 [label="nil" style=filled fontcolor=white fillcolor=black]
 N11 [label="D" style=filled fillcolor=red]
 N12 [label="F" style=filled fillcolor=red]
+}
+`
+
+	TestTreeSameNodeOnce = `digraph d {
+N0 [label="k: \"00\" v: \"\"test-1\"\"" style=filled fontcolor=white fillcolor=black]
+}
+`
+
+	TestTreeSameNodeTwice = `digraph d {
+N0 [label="k: \"00\" v: \"\"test-2\"\"" style=filled fontcolor=white fillcolor=black]
 }
 `
 )
