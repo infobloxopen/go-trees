@@ -366,6 +366,38 @@ func TestDelete(t *testing.T) {
 	assertTree(r, TestEmptyTree, "tree after rest nodes deletion", t)
 }
 
+func TestIsEmpty(t *testing.T) {
+	var r *Tree
+
+	if !r.IsEmpty() {
+		t.Errorf("Expected nil tree to be empty")
+	}
+
+	r = NewTree()
+	r = r.Insert("0", nil)
+	r = r.Insert("3", nil)
+	r = r.Insert("6", nil)
+	if r.IsEmpty() {
+		t.Errorf("Expected three nodes tree to be not empty")
+	}
+
+	r, ok := r.Delete("3")
+	if !ok {
+		t.Errorf("Expected element \"3\" to be deleted")
+	}
+
+	if r.IsEmpty() {
+		t.Errorf("Expected two nodes tree to be not empty")
+	}
+
+	r, ok = r.Delete("0")
+	r, ok = r.Delete("6")
+
+	if !r.IsEmpty() {
+		t.Errorf("Expected empty non-nil tree to be empty")
+	}
+}
+
 const (
 	TestEmptyTree = `digraph d {
 N0 [label="nil" style=filled fontcolor=white fillcolor=black]
