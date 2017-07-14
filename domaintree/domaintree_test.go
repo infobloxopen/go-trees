@@ -10,16 +10,37 @@ import (
 func TestInsert(t *testing.T) {
 	var r *Node
 
-	r = r.Insert("com", "1")
-	r = r.Insert("test.com", "2")
-	r = r.Insert("test.net", "3")
-	r = r.Insert("example.com", "4")
-	r = r.Insert("www.test.com", "5")
-	if r == nil {
+	r1 := r.Insert("com", "1")
+	if r1 == nil {
 		t.Errorf("Expected new tree but got nothing")
 	}
 
-	assertTree(r, "single element tree", t,
+	r2 := r1.Insert("test.com", "2")
+	r3 := r2.Insert("test.net", "3")
+	r4 := r3.Insert("example.com", "4")
+	r5 := r4.Insert("www.test.com", "5")
+
+	assertTree(r, "empty tree", t)
+
+	assertTree(r1, "single element tree", t,
+		"\"com\": \"1\"\n")
+
+	assertTree(r2, "two elements tree", t,
+		"\"com\": \"1\"\n",
+		"\"test.com\": \"2\"\n")
+
+	assertTree(r3, "three elements tree", t,
+		"\"com\": \"1\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"test.net\": \"3\"\n")
+
+	assertTree(r4, "four elements tree", t,
+		"\"com\": \"1\"\n",
+		"\"example.com\": \"4\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"test.net\": \"3\"\n")
+
+	assertTree(r5, "five elements tree", t,
 		"\"com\": \"1\"\n",
 		"\"example.com\": \"4\"\n",
 		"\"test.com\": \"2\"\n",
