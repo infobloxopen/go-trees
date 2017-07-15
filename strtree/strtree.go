@@ -82,6 +82,11 @@ func (t *Tree) Delete(key string) (*Tree, bool) {
 	return &Tree{root: root, compare: c}, ok
 }
 
+// IsEmpty returns true if given tree has no nodes.
+func (t *Tree) IsEmpty() bool {
+	return t == nil || t.root == nil
+}
+
 // Dot dumps tree to Graphviz .dot format.
 func (t *Tree) Dot() string {
 	body := ""
