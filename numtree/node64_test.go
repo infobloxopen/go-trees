@@ -86,6 +86,85 @@ func TestInsert64(t *testing.T) {
 		"64-tree big tree with inverted keys", t)
 }
 
+func TestInplaceInsert64(t *testing.T) {
+	var r *Node64
+
+	r = r.InplaceInsert(0, 64, "test")
+	assertTree64(r, TestTree64WithSingleNodeInserted,
+		"64-tree with single node inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 18, "bottom")
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 9, "top")
+	assertTree64(r, TestTree64WithTopAfterBottomToLeftNodesInserted,
+		"64-tree with top after bottom to left nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 18, "bottom")
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 10, "top")
+	assertTree64(r, TestTree64WithTopAfterBottomToRightNodesInserted,
+		"64-tree with top after bottom to right nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 18, "bottom")
+	r = r.InplaceInsert(0xABAAAAAA00000000, 10, "top")
+	assertTree64(r, TestTree64WithTopAfterBottomAndAdditionalNotLeafNodesInserted,
+		"64-tree with top after bottom and addtional not leaf nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 18, "bottom")
+	r = r.InplaceInsert(0xABAAAAAA00000000, 10, "top")
+	assertTree64(r, TestTree64WithOldTopReplacingTopAfterBottomNodesInserted,
+		"64-tree with old top replacing top after bottom nodes inplace inserted", t)
+	r = r.InplaceInsert(0xABAAAAAA00000000, 7, "root")
+	assertTree64(r, TestTree64WithNewTopReplacingTopAfterBottomNodesInserted,
+		"64-tree with new top replacing top after bottom nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 9, "top")
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 18, "bottom")
+	assertTree64(r, TestTree64WithTopBeforeBottomToLeftNodesInserted,
+		"64-tree with top before bottom to left nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 10, "top")
+	r = r.InplaceInsert(0xAAAAAAAA00000000, 18, "bottom")
+	assertTree64(r, TestTree64WithTopBeforeBottomToRightNodesInserted,
+		"64-tree with top before bottom to right nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAA00000000, 7, "L1")
+	r = r.InplaceInsert(0xABAAAAA00000000, 9, "L2")
+	r = r.InplaceInsert(0xAAAAAAA00000000, 18, "L3")
+	r = r.InplaceInsert(0xAABAAAA00000000, 19, "L4")
+	assertTree64(r, TestTree64WithTopBeforeBottomSeveralLevelNodesInserted,
+		"64-tree with top before bottom several level nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0, -10, nil)
+	assertTree64(r, TestTree64WithNegativeNumberOfBits,
+		"64-tree with negative number of significant bits (inplace)", t)
+
+	r = nil
+	r = r.InplaceInsert(0, 65, nil)
+	assertTree64(r, TestTree64WithTooBigNumberOfBits,
+		"64-tree with too big number of significant bits (inplace)", t)
+
+	r = nil
+	for i := uint64(0); i < 256; i++ {
+		r = r.InplaceInsert(i, 64, fmt.Sprintf("%02x", i))
+	}
+	assertTree64(r, TestTree64BigTreeInsertions,
+		"64-tree big tree (inplace)", t)
+
+	r = nil
+	for i := uint64(0); i < 256; i++ {
+		r = r.InplaceInsert(inv64[i]<<56, 64, fmt.Sprintf("%02x", inv64[i]))
+	}
+	assertTree64(r, TestTree64BigTreeInvertedInsertions,
+		"64-tree big tree with inverted keys (inplace)", t)
+}
+
 func TestEnumerate64(t *testing.T) {
 	var r *Node64
 
