@@ -46,6 +46,10 @@ func TestInsert(t *testing.T) {
 		"\"test.com\": \"2\"\n",
 		"\"www.test.com\": \"5\"\n",
 		"\"test.net\": \"3\"\n")
+
+	r = r.Insert("AbCdEfGhIjKlMnOpQrStUvWxYz.aBcDeFgHiJkLmNoPqRsTuVwXyZ", "test")
+	assertTree(r, "case-check tree", t,
+		"\"abcdefghijklmnopqrstuvwxyz.abcdefghijklmnopqrstuvwxyz\": \"test\"\n")
 }
 
 func TestGet(t *testing.T) {
@@ -71,6 +75,9 @@ func TestGet(t *testing.T) {
 
 	v, ok = r.Get("test.org")
 	assertValue(v, ok, "", false, "fetching \"test.org\" from tree", t)
+
+	v, ok = r.Get("nS.tEsT.cOm")
+	assertValue(v, ok, "2", true, "fetching \"nS.tEsT.cOm\" from tree", t)
 }
 
 func TestDelete(t *testing.T) {
@@ -125,6 +132,18 @@ func TestDelete(t *testing.T) {
 	r, ok = r.Delete("")
 	if ok {
 		t.Error("Expected nothing to clean up from empty tree")
+	}
+
+	r = r.Insert("com", "1")
+	r = r.Insert("test.com", "2")
+	r = r.Insert("test.net", "3")
+	r = r.Insert("example.com", "4")
+	r = r.Insert("www.test.com", "5")
+	r = r.Insert("www.test.org", "6")
+
+	r, ok = r.Delete("WwW.tEsT.cOm")
+	if !ok {
+		t.Error("Expected \"WwW.tEsT.cOm\" to be deleted")
 	}
 }
 

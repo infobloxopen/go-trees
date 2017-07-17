@@ -21,7 +21,7 @@ type Pair struct {
 	Value interface{}
 }
 
-// Insert puts value using given domain as a key. The method returns new tree (old one remains unaffected).
+// Insert puts value using given domain as a key. The method returns new tree (old one remains unaffected). Input name converted to ASCII lowercase according to RFC-4343 (by mapping A-Z to a-z) to perform case-insensitive comparison when getting data from the tree.
 func (n *Node) Insert(d string, v interface{}) *Node {
 	if n == nil {
 		n = &Node{}
@@ -33,7 +33,7 @@ func (n *Node) Insert(d string, v interface{}) *Node {
 	}
 	r := n
 
-	labels := strings.Split(d, ".")
+	labels := strings.Split(asciiLowercase(d), ".")
 	for i := len(labels) - 1; i >= 0; i-- {
 		label := labels[i]
 
@@ -79,7 +79,7 @@ func (n *Node) Get(d string) (interface{}, bool) {
 
 	labels := strings.Split(d, ".")
 	for i := len(labels) - 1; i >= 0; i-- {
-		label := labels[i]
+		label := asciiLowercase(labels[i])
 
 		item, ok := n.branches.Get(label)
 		if !ok {
@@ -133,7 +133,7 @@ func (n *Node) enumerate(s string, ch chan Pair) {
 
 func (n *Node) del(labels []string) (*Node, bool) {
 	last := len(labels) - 1
-	label := labels[last]
+	label := asciiLowercase(labels[last])
 	if last == 0 {
 		branches, ok := n.branches.Delete(label)
 		if ok {
@@ -169,4 +169,13 @@ func (n *Node) del(labels []string) (*Node, bool) {
 		branches: n.branches.Insert(label, next),
 		hasValue: n.hasValue,
 		value:    n.value}, true
+}
+
+func asciiLowercase(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, s)
 }
