@@ -59,6 +59,30 @@ func (n *Node) Insert(d string, v interface{}) *Node {
 	return r
 }
 
+// InplaceInsert puts or replaces value using given domain as a key. The method inserts data directly to current tree so make sure you have exclusive access to it. Input name converted in the same way as for Insert.
+func (n *Node) InplaceInsert(d string, v interface{}) {
+	if n.branches == nil {
+		n.branches = strtree.NewTree()
+	}
+
+	labels := strings.Split(asciiLowercase(d), ".")
+	for i := len(labels) - 1; i >= 0; i-- {
+		label := labels[i]
+
+		item, ok := n.branches.Get(label)
+		if ok {
+			n = item.(*Node)
+		} else {
+			next := &Node{branches: strtree.NewTree()}
+			n.branches.InplaceInsert(label, next)
+			n = next
+		}
+	}
+
+	n.hasValue = true
+	n.value = v
+}
+
 // Enumerate returns key-value pairs in given tree sorted by key first by top level domain label second by second level and so on.
 func (n *Node) Enumerate() chan Pair {
 	ch := make(chan Pair)
