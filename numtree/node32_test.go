@@ -86,6 +86,85 @@ func TestInsert32(t *testing.T) {
 		"32-tree big tree with inverted keys", t)
 }
 
+func TestInplaceInsert32(t *testing.T) {
+	var r *Node32
+
+	r = r.InplaceInsert(0, 32, "test")
+	assertTree32(r, TestTree32WithSingleNodeInserted,
+		"32-tree with single node inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "bottom")
+	r = r.InplaceInsert(0xAAAAAAAA, 9, "top")
+	assertTree32(r, TestTree32WithTopAfterBottomToLeftNodesInserted,
+		"32-tree with top after bottom to left nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "bottom")
+	r = r.InplaceInsert(0xAAAAAAAA, 10, "top")
+	assertTree32(r, TestTree32WithTopAfterBottomToRightNodesInserted,
+		"32-tree with top after bottom to right nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "bottom")
+	r = r.InplaceInsert(0xABAAAAAA, 10, "top")
+	assertTree32(r, TestTree32WithTopAfterBottomAndAdditionalNotLeafNodesInserted,
+		"32-tree with top after bottom and addtional not leaf nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "bottom")
+	r = r.InplaceInsert(0xABAAAAAA, 10, "top")
+	assertTree32(r, TestTree32WithOldTopReplacingTopAfterBottomNodesInserted,
+		"32-tree with old top replacing top after bottom nodes inplace inserted", t)
+	r = r.InplaceInsert(0xABAAAAAA, 7, "root")
+	assertTree32(r, TestTree32WithNewTopReplacingTopAfterBottomNodesInserted,
+		"32-tree with new top replacing top after bottom nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 9, "top")
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "bottom")
+	assertTree32(r, TestTree32WithTopBeforeBottomToLeftNodesInserted,
+		"32-tree with top before bottom to left nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 10, "top")
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "bottom")
+	assertTree32(r, TestTree32WithTopBeforeBottomToRightNodesInserted,
+		"32-tree with top before bottom to right nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0xAAAAAAAA, 7, "L1")
+	r = r.InplaceInsert(0xABAAAAAA, 9, "L2")
+	r = r.InplaceInsert(0xAAAAAAAA, 18, "L3")
+	r = r.InplaceInsert(0xAABAAAAA, 19, "L4")
+	assertTree32(r, TestTree32WithTopBeforeBottomSeveralLevelNodesInserted,
+		"32-tree with top before bottom several level nodes inplace inserted", t)
+
+	r = nil
+	r = r.InplaceInsert(0, -10, nil)
+	assertTree32(r, TestTree32WithNegativeNumberOfBits,
+		"32-tree with negative number of significant bits (inplace)", t)
+
+	r = nil
+	r = r.InplaceInsert(0, 33, nil)
+	assertTree32(r, TestTree32WithTooBigNumberOfBits,
+		"32-tree with too big number of significant bits (inplace)", t)
+
+	r = nil
+	for i := uint32(0); i < 256; i++ {
+		r = r.InplaceInsert(i, 32, fmt.Sprintf("%02x", i))
+	}
+	assertTree32(r, TestTree32BigTreeInsertions,
+		"32-tree big tree (inplace)", t)
+
+	r = nil
+	for i := uint32(0); i < 256; i++ {
+		r = r.InplaceInsert(inv32[i]<<24, 32, fmt.Sprintf("%02x", inv32[i]))
+	}
+	assertTree32(r, TestTree32BigTreeInvertedInsertions,
+		"32-tree big tree with inverted keys (inplace)", t)
+}
+
 func TestEnumerate32(t *testing.T) {
 	var r *Node32
 

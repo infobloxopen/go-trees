@@ -63,6 +63,60 @@ func TestInsertNet(t *testing.T) {
 	assertPanic(func() { invR.InsertNet(n, "panic") }, "inserting to invalid IPv6 tree", t)
 }
 
+func TestInplaceInsertNet(t *testing.T) {
+	r := NewTree()
+
+	r.InplaceInsertNet(nil, "test")
+	if r.root32 != nil || r.root64 != nil {
+		t.Error("Expected empty tree after inserting nil network")
+	}
+
+	r.InplaceInsertNet(&net.IPNet{IP: nil, Mask: nil}, "test")
+	if r.root32 != nil || r.root64 != nil {
+		t.Error("Expected empty tree after inserting invalid network")
+	}
+
+	_, n, _ := net.ParseCIDR("192.0.2.0/24")
+	r.InplaceInsertNet(n, "test")
+	if r.root32 == nil {
+		t.Error("Expected some data in 32-bit tree")
+	} else {
+		assertTree32Node(r, 0xc0000200, 24, "test", "tree with single IPv4 address inserted", t)
+	}
+
+	_, n, _ = net.ParseCIDR("2001:db8::/32")
+	r.InplaceInsertNet(n, "test")
+	if r.root64 == nil {
+		t.Error("Expected some data in 64-bit tree")
+	} else {
+		assertTree64Node(r, 0x20010db800000000, 32, 0x0, 0, "test",
+			"tree with single IPv6 address inserted", t)
+	}
+
+	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:ff::/96")
+	r.InplaceInsertNet(n, "test 1")
+	if r.root64 == nil {
+		t.Error("Expected some data in 64-bit tree")
+	} else {
+		assertTree64Node(r, 0x20010db800000000, 64, 0x000000ff00000000, 32, "test 1",
+			"tree with second IPv6 address inserted", t)
+	}
+
+	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:fe::/96")
+	r.InplaceInsertNet(n, "test 2")
+	if r.root64 == nil {
+		t.Error("Expected some data in 64-bit tree")
+	} else {
+		assertTree64Node(r, 0x20010db800000000, 64, 0x000000fe00000000, 32, "test 2",
+			"tree with third IPv6 address inserted", t)
+	}
+
+	invR := NewTree()
+	invR.root64 = invR.root64.Insert(0x20010db800000000, 64, "test")
+	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:ff::/96")
+	assertPanic(func() { invR.InplaceInsertNet(n, "panic") }, "inserting to invalid IPv6 tree", t)
+}
+
 func (p Pair) String() string {
 	s, ok := p.Value.(string)
 	if ok {
@@ -239,6 +293,11 @@ func TestTreeByIP(t *testing.T) {
 	r, ok = r.DeleteByIP(ip)
 	if !ok {
 		t.Errorf("Expected deletion by address %s but got nothing", ip)
+	}
+
+	r.InplaceInsertIP(ip, "test")
+	if r.root64 == nil {
+		t.Errorf("Expected some tree after inplace insert %s", ip)
 	}
 }
 

@@ -68,6 +68,18 @@ func (n *Node32) Insert(key uint32, bits int, value interface{}) *Node32 {
 	return n.insert(newNode32(key, uint8(bits), true, value))
 }
 
+// InplaceInsert puts new leaf to radix tree (or replaces value in existing one). The method inserts data directly to current tree so make sure you have exclusive access to it.
+func (n *Node32) InplaceInsert(key uint32, bits int, value interface{}) *Node32 {
+	// Adjust bits.
+	if bits < 0 {
+		bits = 0
+	} else if bits > Key32BitSize {
+		bits = Key32BitSize
+	}
+
+	return n.inplaceInsert(key, uint8(bits), value)
+}
+
 // Enumerate returns channel which is populated by nodes with data in order of their keys.
 func (n *Node32) Enumerate() chan *Node32 {
 	ch := make(chan *Node32)
@@ -217,6 +229,61 @@ func (n *Node32) insert(c *Node32) *Node32 {
 	m.chld[branch] = m.chld[branch].insert(c)
 
 	return m
+}
+
+func (n *Node32) inplaceInsert(key uint32, bits uint8, value interface{}) *Node32 {
+	var (
+		p      *Node32
+		branch uint32
+	)
+
+	r := n
+
+	for n != nil {
+		cbits := clz32((n.Key ^ key) | ^masks32[n.Bits] | ^masks32[bits])
+		if cbits < n.Bits {
+			pBranch := branch
+			branch = (n.Key >> (Key32BitSize - 1 - cbits)) & 1
+
+			var m *Node32
+
+			if cbits == bits {
+				m = newNode32(key, bits, true, value)
+				m.chld[branch] = n
+			} else {
+				m = newNode32(key&masks32[cbits], cbits, false, nil)
+				m.chld[1-branch] = newNode32(key, bits, true, value)
+			}
+
+			m.chld[branch] = n
+			if p == nil {
+				r = m
+			} else {
+				p.chld[pBranch] = m
+			}
+
+			return r
+		}
+
+		if bits == n.Bits {
+			n.Key = key
+			n.Leaf = true
+			n.Value = value
+			return r
+		}
+
+		p = n
+		branch = (key >> (Key32BitSize - 1 - cbits)) & 1
+		n = n.chld[branch]
+	}
+
+	n = newNode32(key, bits, true, value)
+	if p == nil {
+		return n
+	}
+
+	p.chld[branch] = n
+	return r
 }
 
 func (n *Node32) enumerate(ch chan *Node32) {

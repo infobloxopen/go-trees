@@ -73,6 +73,18 @@ func (n *Node64) Insert(key uint64, bits int, value interface{}) *Node64 {
 	return n.insert(newNode64(key, uint8(bits), true, value))
 }
 
+// InplaceInsert puts new leaf to radix tree (or replaces value in existing one). The method inserts data directly to current tree so make sure you have exclusive access to it.
+func (n *Node64) InplaceInsert(key uint64, bits int, value interface{}) *Node64 {
+	// Adjust bits.
+	if bits < 0 {
+		bits = 0
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
+	}
+
+	return n.inplaceInsert(key, uint8(bits), value)
+}
+
 // Enumerate returns channel which is populated by nodes in order of their keys.
 func (n *Node64) Enumerate() chan *Node64 {
 	ch := make(chan *Node64)
@@ -190,6 +202,61 @@ func (n *Node64) insert(c *Node64) *Node64 {
 	m.chld[branch] = m.chld[branch].insert(c)
 
 	return m
+}
+
+func (n *Node64) inplaceInsert(key uint64, bits uint8, value interface{}) *Node64 {
+	var (
+		p      *Node64
+		branch uint64
+	)
+
+	r := n
+
+	for n != nil {
+		cbits := clz64((n.Key ^ key) | ^masks64[n.Bits] | ^masks64[bits])
+		if cbits < n.Bits {
+			pBranch := branch
+			branch = (n.Key >> (Key64BitSize - 1 - cbits)) & 1
+
+			var m *Node64
+
+			if cbits == bits {
+				m = newNode64(key, bits, true, value)
+				m.chld[branch] = n
+			} else {
+				m = newNode64(key&masks64[cbits], cbits, false, nil)
+				m.chld[1-branch] = newNode64(key, bits, true, value)
+			}
+
+			m.chld[branch] = n
+			if p == nil {
+				r = m
+			} else {
+				p.chld[pBranch] = m
+			}
+
+			return r
+		}
+
+		if bits == n.Bits {
+			n.Key = key
+			n.Leaf = true
+			n.Value = value
+			return r
+		}
+
+		p = n
+		branch = (key >> (Key64BitSize - 1 - cbits)) & 1
+		n = n.chld[branch]
+	}
+
+	n = newNode64(key, bits, true, value)
+	if p == nil {
+		return n
+	}
+
+	p.chld[branch] = n
+	return r
 }
 
 func (n *Node64) enumerate(ch chan *Node64) {

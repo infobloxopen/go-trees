@@ -91,9 +91,48 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 	return t
 }
 
+// InplaceInsertNet inserts (or replaces) value using given network as a key in current tree.
+func (t *Tree) InplaceInsertNet(n *net.IPNet, value interface{}) {
+	if n == nil {
+		return
+	}
+
+	if key, bits := iPv4NetToUint32(n); bits >= 0 {
+		t.root32 = t.root32.InplaceInsert(key, bits, value)
+	} else if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
+		if MSBits < numtree.Key64BitSize {
+			t.root64 = t.root64.InplaceInsert(MSKey, MSBits, value)
+		} else {
+			if v, ok := t.root64.ExactMatch(MSKey, MSBits); ok {
+				s, ok := v.(subTree64)
+				if !ok {
+					err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
+						MSKey, MSBits, v, v)
+					panic(err)
+				}
+
+				r := (*numtree.Node64)(s)
+				newR := r.InplaceInsert(LSKey, LSBits, value)
+				if newR != r {
+					t.root64 = t.root64.InplaceInsert(MSKey, MSBits, subTree64(newR))
+				}
+			} else {
+				var r *numtree.Node64
+				r = r.InplaceInsert(LSKey, LSBits, value)
+				t.root64 = t.root64.InplaceInsert(MSKey, MSBits, subTree64(r))
+			}
+		}
+	}
+}
+
 // InsertIP inserts value using given IP address as a key. The method returns new tree (old one remains unaffected).
 func (t *Tree) InsertIP(ip net.IP, value interface{}) *Tree {
 	return t.InsertNet(newIPNetFromIP(ip), value)
+}
+
+// InplaceInsertIP inserts (or replaces) value using given IP address as a key in current tree.
+func (t *Tree) InplaceInsertIP(ip net.IP, value interface{}) {
+	t.InplaceInsertNet(newIPNetFromIP(ip), value)
 }
 
 // Enumerate returns channel which is populated by key-value pairs of tree content.
