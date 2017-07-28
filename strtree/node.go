@@ -172,6 +172,74 @@ func (n *node) insert(key string, value interface{}, compare Compare) *node {
 	return n
 }
 
+func (n *node) inplaceInsert(key string, value interface{}, compare Compare) *node {
+	if n == nil {
+		return &node{key: key, value: value}
+	}
+
+	root := &node{chld: [2]*node{nil, n}}
+	dir := dirLeft
+
+	var (
+		gp *node
+		g  *node
+		p  *node
+	)
+
+	n = root
+	r := -1
+
+	for r != 0 {
+		parentDir := dir
+		dir = dirLeft
+		if r < 0 {
+			dir = dirRight
+		}
+
+		gp = g
+		g = p
+		p = n
+		n = n.chld[dir]
+
+		if n == nil {
+			n = &node{
+				key: key,
+				red: true}
+
+			p.chld[dir] = n
+		} else {
+			if n.chld[dirLeft] != nil && n.chld[dirRight] != nil && n.chld[dirLeft].red && n.chld[dirRight].red {
+				n.red = true
+				n.chld[dirLeft].red = false
+				n.chld[dirRight].red = false
+			}
+		}
+
+		if n.red && p != nil && p.red {
+			grandParentDir := dirLeft
+			if gp.chld[dirRight] == g {
+				grandParentDir = dirRight
+			}
+
+			if n == p.chld[parentDir] {
+				gp.chld[grandParentDir] = g.single(parentDir)
+				g = gp
+			} else {
+				gp.chld[grandParentDir] = g.double(parentDir)
+				p = gp
+			}
+		}
+
+		r = compare(n.key, key)
+	}
+
+	n.value = value
+
+	n = root.chld[dirRight]
+	n.red = false
+	return n
+}
+
 func (n *node) fullCopy() *node {
 	return &node{
 		key:   n.key,

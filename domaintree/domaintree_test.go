@@ -52,6 +52,41 @@ func TestInsert(t *testing.T) {
 		"\"abcdefghijklmnopqrstuvwxyz.abcdefghijklmnopqrstuvwxyz\": \"test\"\n")
 }
 
+func TestInplaceInsert(t *testing.T) {
+	r := &Node{}
+	assertTree(r, "empty inplace tree", t)
+
+	r.InplaceInsert("com", "1")
+	assertTree(r, "single element inplace tree", t,
+		"\"com\": \"1\"\n")
+
+	r.InplaceInsert("test.com", "2")
+	assertTree(r, "two elements inplace tree", t,
+		"\"com\": \"1\"\n",
+		"\"test.com\": \"2\"\n")
+
+	r.InplaceInsert("test.net", "3")
+	assertTree(r, "three elements inplace tree", t,
+		"\"com\": \"1\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"test.net\": \"3\"\n")
+
+	r.InplaceInsert("example.com", "4")
+	assertTree(r, "four elements inplace tree", t,
+		"\"com\": \"1\"\n",
+		"\"example.com\": \"4\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"test.net\": \"3\"\n")
+
+	r.InplaceInsert("www.test.com", "5")
+	assertTree(r, "five elements tree", t,
+		"\"com\": \"1\"\n",
+		"\"example.com\": \"4\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"www.test.com\": \"5\"\n",
+		"\"test.net\": \"3\"\n")
+}
+
 func TestGet(t *testing.T) {
 	var r *Node
 

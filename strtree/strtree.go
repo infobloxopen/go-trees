@@ -45,6 +45,11 @@ func (t *Tree) Insert(key string, value interface{}) *Tree {
 	return &Tree{root: n.insert(key, value, c), compare: c}
 }
 
+// InplaceInsert inserts or replaces given key-value pair in the tree. The method inserts data directly to current tree so make sure you have exclusive access to it.
+func (t *Tree) InplaceInsert(key string, value interface{}) {
+	t.root = t.root.inplaceInsert(key, value, t.compare)
+}
+
 // Get returns value by given key.
 func (t *Tree) Get(key string) (interface{}, bool) {
 	if t == nil {
