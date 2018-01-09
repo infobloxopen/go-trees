@@ -36,15 +36,15 @@ func TestInsert(t *testing.T) {
 
 	assertTree(r4, "four elements tree", t,
 		"\"com\": \"1\"\n",
-		"\"example.com\": \"4\"\n",
 		"\"test.com\": \"2\"\n",
+		"\"example.com\": \"4\"\n",
 		"\"test.net\": \"3\"\n")
 
 	assertTree(r5, "five elements tree", t,
 		"\"com\": \"1\"\n",
-		"\"example.com\": \"4\"\n",
 		"\"test.com\": \"2\"\n",
 		"\"www.test.com\": \"5\"\n",
+		"\"example.com\": \"4\"\n",
 		"\"test.net\": \"3\"\n")
 
 	r = r.Insert("AbCdEfGhIjKlMnOpQrStUvWxYz.aBcDeFgHiJkLmNoPqRsTuVwXyZ", "test")
@@ -74,16 +74,16 @@ func TestInplaceInsert(t *testing.T) {
 	r.InplaceInsert("example.com", "4")
 	assertTree(r, "four elements inplace tree", t,
 		"\"com\": \"1\"\n",
-		"\"example.com\": \"4\"\n",
 		"\"test.com\": \"2\"\n",
+		"\"example.com\": \"4\"\n",
 		"\"test.net\": \"3\"\n")
 
 	r.InplaceInsert("www.test.com", "5")
 	assertTree(r, "five elements tree", t,
 		"\"com\": \"1\"\n",
-		"\"example.com\": \"4\"\n",
 		"\"test.com\": \"2\"\n",
 		"\"www.test.com\": \"5\"\n",
+		"\"example.com\": \"4\"\n",
 		"\"test.net\": \"3\"\n")
 }
 

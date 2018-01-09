@@ -4,12 +4,12 @@ package domaintree
 import (
 	"strings"
 
-	"github.com/infobloxopen/go-trees/strtree"
+	"github.com/infobloxopen/go-trees/dltree"
 )
 
 // Node is a radix tree for domain names.
 type Node struct {
-	branches *strtree.Tree
+	branches *dltree.Tree
 
 	hasValue bool
 	value    interface{}
@@ -62,7 +62,7 @@ func (n *Node) Insert(d string, v interface{}) *Node {
 // InplaceInsert puts or replaces value using given domain as a key. The method inserts data directly to current tree so make sure you have exclusive access to it. Input name converted in the same way as for Insert.
 func (n *Node) InplaceInsert(d string, v interface{}) {
 	if n.branches == nil {
-		n.branches = strtree.NewTree()
+		n.branches = dltree.NewTree()
 	}
 
 	labels := strings.Split(asciiLowercase(d), ".")
@@ -73,7 +73,7 @@ func (n *Node) InplaceInsert(d string, v interface{}) {
 		if ok {
 			n = item.(*Node)
 		} else {
-			next := &Node{branches: strtree.NewTree()}
+			next := &Node{branches: dltree.NewTree()}
 			n.branches.InplaceInsert(label, next)
 			n = next
 		}
