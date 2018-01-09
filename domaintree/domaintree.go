@@ -1,11 +1,7 @@
 // Package domaintree implements radix tree data structure for domain names.
 package domaintree
 
-import (
-	"strings"
-
-	"github.com/infobloxopen/go-trees/dltree"
-)
+import "github.com/infobloxopen/go-trees/dltree"
 
 // Node is a radix tree for domain names.
 type Node struct {
@@ -33,11 +29,8 @@ func (n *Node) Insert(d string, v interface{}) *Node {
 	}
 	r := n
 
-	labels := strings.Split(asciiLowercase(d), ".")
-	for i := len(labels) - 1; i >= 0; i-- {
-		label := labels[i]
-
-		item, ok := n.branches.Get(label)
+	for _, label := range split(d) {
+		item, ok := n.branches.RawGet(label)
 		var next *Node
 		if ok {
 			next = item.(*Node)
@@ -49,7 +42,7 @@ func (n *Node) Insert(d string, v interface{}) *Node {
 			next = &Node{}
 		}
 
-		n.branches = n.branches.Insert(label, next)
+		n.branches = n.branches.RawInsert(label, next)
 		n = next
 	}
 
@@ -65,16 +58,13 @@ func (n *Node) InplaceInsert(d string, v interface{}) {
 		n.branches = dltree.NewTree()
 	}
 
-	labels := strings.Split(asciiLowercase(d), ".")
-	for i := len(labels) - 1; i >= 0; i-- {
-		label := labels[i]
-
-		item, ok := n.branches.Get(label)
+	for _, label := range split(d) {
+		item, ok := n.branches.RawGet(label)
 		if ok {
 			n = item.(*Node)
 		} else {
 			next := &Node{branches: dltree.NewTree()}
-			n.branches.InplaceInsert(label, next)
+			n.branches.RawInplaceInsert(label, next)
 			n = next
 		}
 	}
@@ -101,11 +91,8 @@ func (n *Node) Get(d string) (interface{}, bool) {
 		return nil, false
 	}
 
-	labels := strings.Split(d, ".")
-	for i := len(labels) - 1; i >= 0; i-- {
-		label := asciiLowercase(labels[i])
-
-		item, ok := n.branches.Get(label)
+	for _, label := range split(d) {
+		item, ok := n.branches.RawGet(label)
 		if !ok {
 			break
 		}
@@ -122,15 +109,16 @@ func (n *Node) Delete(d string) (*Node, bool) {
 		return nil, false
 	}
 
-	if len(d) <= 0 {
-		if n.hasValue || !n.branches.IsEmpty() {
-			return &Node{}, true
-		}
-
-		return n, false
+	labels := split(d)
+	if len(labels) > 0 {
+		return n.del(split(d))
 	}
 
-	return n.del(strings.Split(d, "."))
+	if n.hasValue || !n.branches.IsEmpty() {
+		return &Node{}, true
+	}
+
+	return n, false
 }
 
 func (n *Node) enumerate(s string, ch chan Pair) {
@@ -144,8 +132,8 @@ func (n *Node) enumerate(s string, ch chan Pair) {
 			Value: n.value}
 	}
 
-	for item := range n.branches.Enumerate() {
-		sub := item.Key
+	for item := range n.branches.RawEnumerate() {
+		sub := item.Key.String()
 		if len(s) > 0 {
 			sub += "." + s
 		}
@@ -155,51 +143,41 @@ func (n *Node) enumerate(s string, ch chan Pair) {
 	}
 }
 
-func (n *Node) del(labels []string) (*Node, bool) {
-	last := len(labels) - 1
-	label := asciiLowercase(labels[last])
-	if last == 0 {
-		branches, ok := n.branches.Delete(label)
-		if ok {
+func (n *Node) del(labels []dltree.DomainLabel) (*Node, bool) {
+	label := labels[0]
+	if len(labels) > 1 {
+		item, ok := n.branches.RawGet(label)
+		if !ok {
+			return n, false
+		}
+
+		next := item.(*Node)
+		next, ok = next.del(labels[1:])
+		if !ok {
+			return n, false
+		}
+
+		if next.branches.IsEmpty() && !next.hasValue {
+			branches, _ := n.branches.RawDelete(label)
 			return &Node{
 				branches: branches,
 				hasValue: n.hasValue,
 				value:    n.value}, true
 		}
 
-		return n, false
+		return &Node{
+			branches: n.branches.RawInsert(label, next),
+			hasValue: n.hasValue,
+			value:    n.value}, true
 	}
 
-	item, ok := n.branches.Get(label)
-	if !ok {
-		return n, false
-	}
-
-	next := item.(*Node)
-	next, ok = next.del(labels[:last])
-	if !ok {
-		return n, false
-	}
-
-	if next.branches.IsEmpty() && !next.hasValue {
-		branches, _ := n.branches.Delete(label)
+	branches, ok := n.branches.RawDelete(label)
+	if ok {
 		return &Node{
 			branches: branches,
 			hasValue: n.hasValue,
 			value:    n.value}, true
 	}
 
-	return &Node{
-		branches: n.branches.Insert(label, next),
-		hasValue: n.hasValue,
-		value:    n.value}, true
-}
-
-func asciiLowercase(s string) string {
-	return strings.Map(func(r rune) rune {
-		if r >= 'A' && r <= 'Z' {
-			return r + ('a' - 'A')
-		}
-		return r
-	}, s)
+	return n, false
 }

@@ -18,7 +18,9 @@ func TestInsert(t *testing.T) {
 	r2 := r1.Insert("test.com", "2")
 	r3 := r2.Insert("test.net", "3")
 	r4 := r3.Insert("example.com", "4")
-	r5 := r4.Insert("www.test.com", "5")
+	r5 := r4.Insert("www.test.com.", "5")
+	r6 := r5.Insert(".", "6")
+	r6a := r6.Insert("", "6a")
 
 	assertTree(r, "empty tree", t)
 
@@ -41,6 +43,22 @@ func TestInsert(t *testing.T) {
 		"\"test.net\": \"3\"\n")
 
 	assertTree(r5, "five elements tree", t,
+		"\"com\": \"1\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"www.test.com\": \"5\"\n",
+		"\"example.com\": \"4\"\n",
+		"\"test.net\": \"3\"\n")
+
+	assertTree(r6, "siz elements tree", t,
+		"\"\": \"6\"\n",
+		"\"com\": \"1\"\n",
+		"\"test.com\": \"2\"\n",
+		"\"www.test.com\": \"5\"\n",
+		"\"example.com\": \"4\"\n",
+		"\"test.net\": \"3\"\n")
+
+	assertTree(r6a, "five elements tree", t,
+		"\"\": \"6a\"\n",
 		"\"com\": \"1\"\n",
 		"\"test.com\": \"2\"\n",
 		"\"www.test.com\": \"5\"\n",
@@ -201,7 +219,7 @@ func assertTree(r *Node, desc string, t *testing.T, e ...string) {
 
 	diff, err := difflib.GetContextDiffString(ctx)
 	if err != nil {
-		panic(fmt.Errorf("Can't compare \"%s\": %s", desc, err))
+		panic(fmt.Errorf("can't compare \"%s\": %s", desc, err))
 	}
 
 	if len(diff) > 0 {
