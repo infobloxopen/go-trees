@@ -986,9 +986,9 @@ func assertRawEnumerate(ch chan RawPair, desc string, t *testing.T, e ...string)
 	for p := range ch {
 		s, ok := p.Value.(string)
 		if ok {
-			pairs = append(pairs, fmt.Sprintf("%q: %q\n", domainLabel(p.Key), s))
+			pairs = append(pairs, fmt.Sprintf("%q: %q\n", DomainLabel(p.Key), s))
 		} else {
-			pairs = append(pairs, fmt.Sprintf("%q: %T (%#v)\n", domainLabel(p.Key), p.Value, p.Value))
+			pairs = append(pairs, fmt.Sprintf("%q: %T (%#v)\n", DomainLabel(p.Key), p.Value, p.Value))
 		}
 	}
 

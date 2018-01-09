@@ -14,7 +14,7 @@ type Pair struct {
 
 // RawPair is a key-value pair representing tree node content. Exposes binary representation of domain label.
 type RawPair struct {
-	Key   []byte
+	Key   DomainLabel
 	Value interface{}
 }
 
@@ -33,7 +33,7 @@ func (t *Tree) Insert(key string, value interface{}) *Tree {
 		n = t.root
 	}
 
-	dl, _ := makeDomainLabel(key)
+	dl, _ := MakeDomainLabel(key)
 	return &Tree{root: n.insert(dl, value)}
 }
 
@@ -47,18 +47,18 @@ func (t *Tree) RawInsert(key []byte, value interface{}) *Tree {
 		n = t.root
 	}
 
-	return &Tree{root: n.insert(domainLabel(key), value)}
+	return &Tree{root: n.insert(DomainLabel(key), value)}
 }
 
 // InplaceInsert inserts or replaces given key-value pair in the tree. The method inserts data directly to current tree so make sure you have exclusive access to it.
 func (t *Tree) InplaceInsert(key string, value interface{}) {
-	dl, _ := makeDomainLabel(key)
+	dl, _ := MakeDomainLabel(key)
 	t.root = t.root.inplaceInsert(dl, value)
 }
 
 // RawInplaceInsert inserts or replaces given key-value pair in the tree. The method inserts data directly to current tree so make sure you have exclusive access to it. Expects bindary domain label on input.
 func (t *Tree) RawInplaceInsert(key []byte, value interface{}) {
-	t.root = t.root.inplaceInsert(domainLabel(key), value)
+	t.root = t.root.inplaceInsert(DomainLabel(key), value)
 }
 
 // Get returns value by given key.
@@ -67,17 +67,17 @@ func (t *Tree) Get(key string) (interface{}, bool) {
 		return nil, false
 	}
 
-	dl, _ := makeDomainLabel(key)
+	dl, _ := MakeDomainLabel(key)
 	return t.root.get(dl)
 }
 
-// Get returns value by given key. Expects bindary domain label on input.
+// RawGet returns value by given key. Expects bindary domain label on input.
 func (t *Tree) RawGet(key []byte) (interface{}, bool) {
 	if t == nil {
 		return nil, false
 	}
 
-	return t.root.get(domainLabel(key))
+	return t.root.get(DomainLabel(key))
 }
 
 // Enumerate returns channel which is populated by key pair values in order of keys.
@@ -120,7 +120,7 @@ func (t *Tree) Delete(key string) (*Tree, bool) {
 		return nil, false
 	}
 
-	dl, _ := makeDomainLabel(key)
+	dl, _ := MakeDomainLabel(key)
 	root, ok := t.root.del(dl)
 	return &Tree{root: root}, ok
 }
@@ -131,7 +131,7 @@ func (t *Tree) RawDelete(key []byte) (*Tree, bool) {
 		return nil, false
 	}
 
-	root, ok := t.root.del(domainLabel(key))
+	root, ok := t.root.del(DomainLabel(key))
 	return &Tree{root: root}, ok
 }
 

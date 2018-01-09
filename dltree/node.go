@@ -8,7 +8,7 @@ const (
 )
 
 type node struct {
-	key   domainLabel
+	key   DomainLabel
 	value interface{}
 
 	chld [2]*node
@@ -57,7 +57,7 @@ func (n *node) dotString() string {
 	return fmt.Sprintf("[label=%s style=filled %s]", k, color)
 }
 
-func (n *node) insert(key domainLabel, value interface{}) *node {
+func (n *node) insert(key DomainLabel, value interface{}) *node {
 	if n == nil {
 		return &node{key: key, value: value}
 	}
@@ -172,7 +172,7 @@ func (n *node) insert(key domainLabel, value interface{}) *node {
 	return n
 }
 
-func (n *node) inplaceInsert(key domainLabel, value interface{}) *node {
+func (n *node) inplaceInsert(key DomainLabel, value interface{}) *node {
 	if n == nil {
 		return &node{key: key, value: value}
 	}
@@ -273,7 +273,7 @@ func (n *node) double(dir int) *node {
 	return n.single(dir)
 }
 
-func (n *node) get(key domainLabel) (interface{}, bool) {
+func (n *node) get(key DomainLabel) (interface{}, bool) {
 	for n != nil {
 		r := compare(n.key, key)
 
@@ -318,7 +318,7 @@ func (n *node) rawEnumerate(ch chan RawPair) {
 	n.chld[dirRight].rawEnumerate(ch)
 }
 
-func (n *node) del(key domainLabel) (*node, bool) {
+func (n *node) del(key DomainLabel) (*node, bool) {
 	// Fake root.
 	root := &node{chld: [2]*node{nil, n}}
 

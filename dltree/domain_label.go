@@ -6,9 +6,11 @@ import (
 	"strconv"
 )
 
-type domainLabel []byte
+// A DomainLabel represents content of a label.
+type DomainLabel []byte
 
-func getFirstLabelSize(s string) (int, int) {
+// GetFirstLabelSize returns size in bytes needed to store first label of given domain name as a DomainLabel. Additionally the function returns position right after the label in given string (or length of the string if the first label also is the last).
+func GetFirstLabelSize(s string) (int, int) {
 	size := 0
 	escaped := 0
 	var code [3]byte
@@ -88,9 +90,10 @@ func getFirstLabelSize(s string) (int, int) {
 	return size, len(s)
 }
 
-func makeDomainLabel(s string) (domainLabel, int) {
-	size, end := getFirstLabelSize(s)
-	out := make(domainLabel, size)
+// MakeDomainLabel returns first domain label found in given string as DomainLabel and position in the string right after the label.
+func MakeDomainLabel(s string) (DomainLabel, int) {
+	size, end := GetFirstLabelSize(s)
+	out := make(DomainLabel, size)
 
 	escaped := 0
 	var code [3]byte
@@ -221,7 +224,7 @@ func makeDomainLabel(s string) (domainLabel, int) {
 	return out, end
 }
 
-func (l domainLabel) String() string {
+func (l DomainLabel) String() string {
 	size := 0
 	for _, c := range l {
 		size++
@@ -266,7 +269,7 @@ func (l domainLabel) String() string {
 	return string(out)
 }
 
-func compare(a, b domainLabel) int {
+func compare(a, b DomainLabel) int {
 	d := len(a) - len(b)
 	if d != 0 {
 		return d
