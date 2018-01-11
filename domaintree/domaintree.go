@@ -103,6 +103,27 @@ func (n *Node) Get(d string) (interface{}, bool) {
 	return n.value, n.hasValue
 }
 
+// WireGet gets value for domain which is equal to domain in the tree or is a subdomain of existing domain. The method accepts domain name in "wire" format described by RFC-1035 section "3.1. Name space definitions". Additionally it requires all ASCII letters (A-Z) to be converted to their lowercase counterparts (a-z). Returns error in case of compressed names (label length > 63 octets), malformed domain names (last label length too big) and too long domain names (more than 255 bytes).
+func (n *Node) WireGet(d WireDomainNameLower) (interface{}, bool, error) {
+	if n == nil {
+		return nil, false, nil
+	}
+
+	err := wireSplitCallback(d, func(label []byte) bool {
+		if item, ok := n.branches.RawGet(label); ok {
+			n = item.(*Node)
+			return true
+		}
+
+		return false
+	})
+	if err != nil {
+		return nil, false, err
+	}
+
+	return n.value, n.hasValue, nil
+}
+
 // Delete removes current domain and all its subdomains if any. It returns new tree and flag if deletion indeed occurs.
 func (n *Node) Delete(d string) (*Node, bool) {
 	if n == nil {

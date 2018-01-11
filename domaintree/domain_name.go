@@ -1,6 +1,22 @@
 package domaintree
 
-import "github.com/infobloxopen/go-trees/dltree"
+import (
+	"errors"
+
+	"github.com/infobloxopen/go-trees/dltree"
+)
+
+var (
+	// ErrCompressedDN is the error returned by WireGet when domain label exceeds 63 bytes.
+	ErrCompressedDN = errors.New("can't handle compressed domain name")
+	// ErrLabelTooLong is the error returned by WireGet when last domain label length doesn't
+	// fit whole domain name length.
+	ErrLabelTooLong = errors.New("label too long")
+	// ErrEmptyLabel means that label of zero length met in the middle of domain name.
+	ErrEmptyLabel   = errors.New("empty label")
+    // ErrNameTooLong is the error returned when overall domain name length exeeds 256 bytes.
+	ErrNameTooLong  = errors.New("domain name too long")
+)
 
 func split(s string) []dltree.DomainLabel {
 	dn := make([]dltree.DomainLabel, getLabelsCount(s))
@@ -35,4 +51,59 @@ func getLabelsCount(s string) int {
 	}
 
 	return labels
+}
+
+// WireDomainNameLower is a type to store domain name in "wire" format as described in RFC-1035 section "3.1. Name space definitions" with all lowercase ASCII letters.
+type WireDomainNameLower []byte
+
+func wireSplitCallback(dn WireDomainNameLower, f func(label []byte) bool) error {
+	if len(dn) > 256 {
+		return ErrNameTooLong
+	}
+
+	if len(dn) > 0 {
+		var lPos [256]int
+		labels := 0
+		idx := 0
+		max := 0
+		for {
+			ll := int(dn[idx])
+			if ll <= 0 {
+				if idx != len(dn)-1 {
+					return ErrEmptyLabel
+				}
+
+				break
+			}
+
+			if ll > 63 {
+				return ErrCompressedDN
+			}
+
+			if idx+ll+1 > len(dn) {
+				return ErrLabelTooLong
+			}
+
+			if ll > max {
+				max = ll
+			}
+
+			lPos[labels] = idx
+			labels++
+			idx += ll + 1
+		}
+
+		for labels > 0 {
+			labels--
+			idx := lPos[labels]
+			ll := int(dn[idx])
+			start := idx + 1
+			end := start + ll
+			if !f(dn[start:end]) {
+				break
+			}
+		}
+	}
+
+	return nil
 }
