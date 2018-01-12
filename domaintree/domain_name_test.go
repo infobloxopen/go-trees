@@ -64,6 +64,90 @@ func TestGetLabelsCount(t *testing.T) {
 	}
 }
 
+func TestMakeWireDomainNameLower(t *testing.T) {
+	dn := "example.com"
+	wdn, err := MakeWireDomainNameLower(dn)
+	if err != nil {
+		t.Errorf("Expected no error for %q but got %s", dn, err)
+	}
+
+	if string(wdn) != "\x07example\x03com\x00" {
+		t.Errorf("Got %q for %q", wdn, wdn)
+	}
+
+	dn = "tooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo.long.domain.label"
+	wdn, err = MakeWireDomainNameLower(dn)
+	if err != nil {
+		if err != ErrLabelTooLong {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrLabelTooLong, dn, err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", dn, wdn)
+	}
+
+	dn = "empty..domain.label"
+	wdn, err = MakeWireDomainNameLower(dn)
+	if err != nil {
+		if err != ErrEmptyLabel {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrEmptyLabel, dn, err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", dn, wdn)
+	}
+
+	dn = "toooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo." +
+		"loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong." +
+		"dooooooooooooooooooooooooooooooooooooooooooooooooooooooooooomai." +
+		"naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaame"
+	wdn, err = MakeWireDomainNameLower(dn)
+	if err != nil {
+		if err != ErrNameTooLong {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrNameTooLong, dn, err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", dn, wdn)
+	}
+
+	dn = "toooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo." +
+		"loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong." +
+		"dooooooooooooooooooooooooooooooooooooooooooooooooooooooooooomai." +
+		"naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaame." +
+		"iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiis." +
+		"toooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo." +
+		"loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong"
+	wdn, err = MakeWireDomainNameLower(dn)
+	if err != nil {
+		if err != ErrNameTooLong {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrNameTooLong, dn, err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", dn, wdn)
+	}
+}
+
+func TestWireDomainNameLowerString(t *testing.T) {
+	dn := "example.com"
+	wdn := WireDomainNameLower("\x07example\x03com\x00")
+	sdn := wdn.String()
+	if sdn != dn {
+		t.Errorf("Expected %q for %q but got %q", dn, wdn, sdn)
+	}
+
+	dn = "example.com."
+	wdn = WireDomainNameLower("\x07example\x03com\x05")
+	sdn = wdn.String()
+	if sdn != dn {
+		t.Errorf("Expected %q for %q but got %q", dn, wdn, sdn)
+	}
+
+	dn = "example.com"
+	wdn = WireDomainNameLower("\x07example\x03com")
+	sdn = wdn.String()
+	if sdn != dn {
+		t.Errorf("Expected %q for %q but got %q", dn, wdn, sdn)
+	}
+}
+
 func assertDomainName(labels []dltree.DomainLabel, elabels []string, dn string, t *testing.T) {
 	for i := range elabels {
 		elabels[i] += "\n"

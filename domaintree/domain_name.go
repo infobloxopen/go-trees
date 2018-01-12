@@ -13,9 +13,9 @@ var (
 	// fit whole domain name length.
 	ErrLabelTooLong = errors.New("label too long")
 	// ErrEmptyLabel means that label of zero length met in the middle of domain name.
-	ErrEmptyLabel   = errors.New("empty label")
-    // ErrNameTooLong is the error returned when overall domain name length exeeds 256 bytes.
-	ErrNameTooLong  = errors.New("domain name too long")
+	ErrEmptyLabel = errors.New("empty label")
+	// ErrNameTooLong is the error returned when overall domain name length exeeds 256 bytes.
+	ErrNameTooLong = errors.New("domain name too long")
 )
 
 func split(s string) []dltree.DomainLabel {
@@ -55,6 +55,74 @@ func getLabelsCount(s string) int {
 
 // WireDomainNameLower is a type to store domain name in "wire" format as described in RFC-1035 section "3.1. Name space definitions" with all lowercase ASCII letters.
 type WireDomainNameLower []byte
+
+// MakeWireDomainNameLower creates lowercase "wire" representation of given domain name.
+func MakeWireDomainNameLower(s string) (WireDomainNameLower, error) {
+	out := WireDomainNameLower{}
+	start := 0
+	for {
+		label, p := dltree.MakeDomainLabel(s[start:])
+		if len(label) > 63 {
+			return nil, ErrLabelTooLong
+		}
+
+		start += p + 1
+		if start >= len(s) {
+			if len(label) > 0 {
+				out = append(out, byte(len(label)))
+				out = append(out, label...)
+				if len(out) > 255 {
+					return nil, ErrNameTooLong
+				}
+			}
+
+			break
+		}
+
+		if len(label) <= 0 {
+			return nil, ErrEmptyLabel
+		}
+
+		out = append(out, byte(len(label)))
+		out = append(out, label...)
+		if len(out) > 255 {
+			return nil, ErrNameTooLong
+		}
+	}
+
+	return append(out, 0), nil
+}
+
+// String returns domain name in human readable format.
+func (d WireDomainNameLower) String() string {
+	out := ""
+	start := 0
+	for start < len(d) {
+		ll := int(d[start])
+
+		start++
+		if start >= len(d) {
+			if ll > 0 {
+				out += "."
+			}
+
+			return out
+		}
+
+		if ll > 0 {
+			label := dltree.DomainLabel(d[start : start+ll]).String()
+			if len(out) > 0 {
+				out += "." + label
+			} else {
+				out = label
+			}
+
+			start += ll
+		}
+	}
+
+	return out
+}
 
 func wireSplitCallback(dn WireDomainNameLower, f func(label []byte) bool) error {
 	if len(dn) > 256 {

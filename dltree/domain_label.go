@@ -224,6 +224,7 @@ func MakeDomainLabel(s string) (DomainLabel, int) {
 	return out, end
 }
 
+// String returns domain label in human readable format.
 func (l DomainLabel) String() string {
 	size := 0
 	for _, c := range l {
