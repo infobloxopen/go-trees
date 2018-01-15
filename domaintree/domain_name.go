@@ -93,6 +93,42 @@ func MakeWireDomainNameLower(s string) (WireDomainNameLower, error) {
 	return append(out, 0), nil
 }
 
+// ToLowerWireDomainName converts "wire" domain name to lowercase.
+func ToLowerWireDomainName(d []byte) (WireDomainNameLower, error) {
+	if len(d) > 256 {
+		return nil, ErrNameTooLong
+	}
+
+	out := make(WireDomainNameLower, len(d))
+	ll := 0
+	for i, c := range d {
+		if ll > 0 {
+			ll--
+
+			if c >= 'A' && c <= 'Z' {
+				c += 0x20
+			}
+		} else {
+			ll = int(c)
+			if ll <= 0 && i != len(d)-1 {
+				return nil, ErrEmptyLabel
+			}
+
+			if ll > 63 {
+				return nil, ErrCompressedDN
+			}
+		}
+
+		out[i] = c
+	}
+
+	if out[len(out)-1] != 0 {
+		return nil, ErrLabelTooLong
+	}
+
+	return out, nil
+}
+
 // String returns domain name in human readable format.
 func (d WireDomainNameLower) String() string {
 	out := ""

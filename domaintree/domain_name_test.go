@@ -148,6 +148,65 @@ func TestWireDomainNameLowerString(t *testing.T) {
 	}
 }
 
+func TestToLowerWireDomainName(t *testing.T) {
+	wdn := WireDomainNameLower("\x07ExAmPlE\x03CoM\x00")
+	ewdn := "\x07example\x03com\x00"
+	wldn, err := ToLowerWireDomainName(wdn)
+	if err != nil {
+		t.Errorf("Expected no error for %q but got \"%s\"", string(wdn), err)
+	} else if string(wldn) != ewdn {
+		t.Errorf("Expected %q for %q but got %q", ewdn, string(wdn), string(wldn))
+	}
+
+	wdn = WireDomainNameLower(
+		"\x3fTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO" +
+			"\x3fLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG" +
+			"\x3fDOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOMAI" +
+			"\x3fNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAME" +
+			"\x3fIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIS" +
+			"\x3fTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO" +
+			"\x3fLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG" +
+			"\x00")
+	wldn, err = ToLowerWireDomainName(wdn)
+	if err != nil {
+		if err != ErrNameTooLong {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrNameTooLong, string(wdn), err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", string(wdn), string(wldn))
+	}
+
+	wdn = WireDomainNameLower("\x05EMPTY\x00\x06DOMAIN\x05LABEL\x00")
+	wldn, err = ToLowerWireDomainName(wdn)
+	if err != nil {
+		if err != ErrEmptyLabel {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrEmptyLabel, string(wdn), err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", string(wdn), string(wldn))
+	}
+
+	wdn = WireDomainNameLower("\x0aCOMPRESSED\xff\xff")
+	wldn, err = ToLowerWireDomainName(wdn)
+	if err != nil {
+		if err != ErrCompressedDN {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrCompressedDN, string(wdn), err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", string(wdn), string(wldn))
+	}
+
+	wdn = WireDomainNameLower("\x05LABEL")
+	wldn, err = ToLowerWireDomainName(wdn)
+	if err != nil {
+		if err != ErrLabelTooLong {
+			t.Errorf("Expected error \"%s\" for %q but got \"%s\"", ErrLabelTooLong, string(wdn), err)
+		}
+	} else {
+		t.Errorf("Expected error for %q but got result %q", string(wdn), string(wldn))
+	}
+}
+
 func assertDomainName(labels []dltree.DomainLabel, elabels []string, dn string, t *testing.T) {
 	for i := range elabels {
 		elabels[i] += "\n"
