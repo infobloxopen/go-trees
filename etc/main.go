@@ -4,5 +4,5 @@ package main
 import "log"
 
 func main() {
-	log.Print("ETC")
+	log.Printf("ETC: %q", conf.template)
 }
