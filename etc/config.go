@@ -11,7 +11,7 @@ type config struct {
 
 var conf config
 
-func init() {
+func parse() {
 	flag.StringVar(&conf.template, "t", "", "path to template (required)")
 
 	flag.Parse()

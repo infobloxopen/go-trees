@@ -32,10 +32,7 @@ func getRelName(p string, prefix []string) string {
 const preAllocStrings = 10
 
 func fullSplit(p string) []string {
-	d, err := filepath.Abs(p)
-	if err != nil {
-		log.Fatalf("can't split %q: %s", p, err)
-	}
+	d := filepath.Clean(p)
 
 	out := make([]string, preAllocStrings)
 	i := preAllocStrings
@@ -48,16 +45,19 @@ func fullSplit(p string) []string {
 		}
 
 		parent, f := filepath.Split(d)
-		out[i] = f
-
 		if len(f) <= 0 {
+			out[i] = filepath.Clean(parent)
 			break
 		}
 
-		d, err = filepath.Abs(parent)
-		if err != nil {
-			log.Fatalf("can't split %q: %s", p, err)
+		if len(parent) <= 0 {
+			out[i] = f
+			break
 		}
+
+		out[i] = f
+
+		d = filepath.Clean(parent)
 	}
 
 	return out[i:]

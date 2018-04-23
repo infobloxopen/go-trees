@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	parse()
 	execute(conf.template, makePrefix(conf.template))
 }
 
