@@ -25,27 +25,28 @@ func execute(name string, data interface{}, prefix []string) {
 
 	fi, err := os.Stat(absName)
 	if err != nil {
-		log.Fatalf("%s", err)
+		log.Fatal(err)
+	}
+
+	newName := executeString(absName, data)
+	if newName == absName {
+		log.Fatalf("instance name is the same as template name %q", newName)
 	}
 
 	if fi.IsDir() {
-		newName := executeString(absName, data)
-		if newName == absName {
-			log.Fatalf("instance name is the same as template name %q", newName)
-		}
-
 		log.Printf("creating directory %q -> %q", relName, getRelName(newName, prefix))
-		if err := os.MkdirAll(newName, 0755); err != nil {
-			log.Fatalf("%s", err)
-		}
+		executeDir(newName)
 
 		lst, err := ioutil.ReadDir(absName)
 		if err != nil {
-			log.Fatalf("%s", err)
+			log.Fatal(err)
 		}
 
 		for _, item := range lst {
 			execute(path.Join(absName, item.Name()), data, prefix)
 		}
+	} else {
+		log.Printf("creating file %q -> %q", relName, getRelName(newName, prefix))
+		executeFile(newName, absName, data)
 	}
 }
