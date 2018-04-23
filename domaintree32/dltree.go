@@ -1,6 +1,6 @@
-package domaintree8
+package domaintree32
 
-// !!!DON'T EDIT!!! Generated with infobloxopen/go-trees/etc from domaintree{{.bits}} with etc -s uint8 -d dtuintX.yaml -t ./domaintree\{\{.bits\}\}
+// !!!DON'T EDIT!!! Generated with infobloxopen/go-trees/etc from domaintree{{.bits}} with etc -s uint32 -d dtuintX.yaml -t ./domaintree\{\{.bits\}\}
 
 import "github.com/infobloxopen/go-trees/domain"
 

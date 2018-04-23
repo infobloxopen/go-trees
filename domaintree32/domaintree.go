@@ -1,7 +1,7 @@
-// Package domaintree8 implements radix tree data structure for domain names.
-package domaintree8
+// Package domaintree32 implements radix tree data structure for domain names.
+package domaintree32
 
-// !!!DON'T EDIT!!! Generated with infobloxopen/go-trees/etc from domaintree{{.bits}} with etc -s uint8 -d dtuintX.yaml -t ./domaintree\{\{.bits\}\}
+// !!!DON'T EDIT!!! Generated with infobloxopen/go-trees/etc from domaintree{{.bits}} with etc -s uint32 -d dtuintX.yaml -t ./domaintree\{\{.bits\}\}
 
 import (
 	"github.com/infobloxopen/go-trees/domain"
@@ -12,17 +12,17 @@ type Node struct {
 	branches *labelTree
 
 	hasValue bool
-	value    uint8
+	value    uint32
 }
 
 // Pair represents a key-value pair returned by Enumerate method.
 type Pair struct {
 	Key   string
-	Value uint8
+	Value uint32
 }
 
 // Insert puts value using given domain as a key. The method returns new tree (old one remains unaffected). Input name converted to ASCII lowercase according to RFC-4343 (by mapping A-Z to a-z) to perform case-insensitive comparison when getting data from the tree.
-func (n *Node) Insert(d string, v uint8) *Node {
+func (n *Node) Insert(d string, v uint32) *Node {
 	if n == nil {
 		n = &Node{}
 	} else {
@@ -55,7 +55,7 @@ func (n *Node) Insert(d string, v uint8) *Node {
 }
 
 // InplaceInsert puts or replaces value using given domain as a key. The method inserts data directly to current tree so make sure you have exclusive access to it. Input name converted in the same way as for Insert.
-func (n *Node) InplaceInsert(d string, v uint8) {
+func (n *Node) InplaceInsert(d string, v uint32) {
 	if n.branches == nil {
 		n.branches = newLabelTree()
 	}
@@ -88,7 +88,7 @@ func (n *Node) Enumerate() chan Pair {
 }
 
 // Get gets value for domain which is equal to domain in the tree or is a subdomain of existing domain.
-func (n *Node) Get(d string) (uint8, bool) {
+func (n *Node) Get(d string) (uint32, bool) {
 	if n == nil {
 		return 0, false
 	}
@@ -106,7 +106,7 @@ func (n *Node) Get(d string) (uint8, bool) {
 }
 
 // WireGet gets value for domain which is equal to domain in the tree or is a subdomain of existing domain. The method accepts domain name in "wire" format described by RFC-1035 section "3.1. Name space definitions". Additionally it requires all ASCII letters (A-Z) to be converted to their lowercase counterparts (a-z). Returns error in case of compressed names (label length > 63 octets), malformed domain names (last label length too big) and too long domain names (more than 255 bytes).
-func (n *Node) WireGet(d domain.WireNameLower) (uint8, bool, error) {
+func (n *Node) WireGet(d domain.WireNameLower) (uint32, bool, error) {
 	if n == nil {
 		return 0, false, nil
 	}

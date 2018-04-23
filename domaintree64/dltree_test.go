@@ -1,6 +1,6 @@
-package domaintree8
+package domaintree64
 
-// !!!DON'T EDIT!!! Generated with infobloxopen/go-trees/etc from domaintree{{.bits}} with etc -s uint8 -d dtuintX.yaml -t ./domaintree\{\{.bits\}\}
+// !!!DON'T EDIT!!! Generated with infobloxopen/go-trees/etc from domaintree{{.bits}} with etc -s uint64 -d dtuintX.yaml -t ./domaintree\{\{.bits\}\}
 
 import (
 	"fmt"
