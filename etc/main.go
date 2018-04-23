@@ -11,30 +11,41 @@ import (
 
 func main() {
 	parse()
-	execute(conf.template, makePrefix(conf.template))
+	execute(conf.template, load(conf.data), makePrefix(conf.template))
 }
 
-func execute(name string, prefix []string) {
+func execute(name string, data interface{}, prefix []string) {
 	absName, err := filepath.Abs(name)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("executing %q", getRelName(absName, prefix))
+	relName := getRelName(absName, prefix)
+	log.Printf("executing %q", relName)
 
 	fi, err := os.Stat(absName)
 	if err != nil {
-		log.Fatalf("\t%s", err)
+		log.Fatalf("%s", err)
 	}
 
 	if fi.IsDir() {
+		newName := executeString(absName, data)
+		if newName == absName {
+			log.Fatalf("instance name is the same as template name %q", newName)
+		}
+
+		log.Printf("creating directory %q -> %q", relName, getRelName(newName, prefix))
+		if err := os.MkdirAll(newName, 0755); err != nil {
+			log.Fatalf("%s", err)
+		}
+
 		lst, err := ioutil.ReadDir(absName)
 		if err != nil {
-			log.Fatalf("\t%s", err)
+			log.Fatalf("%s", err)
 		}
 
 		for _, item := range lst {
-			execute(path.Join(absName, item.Name()), prefix)
+			execute(path.Join(absName, item.Name()), data, prefix)
 		}
 	}
 }
