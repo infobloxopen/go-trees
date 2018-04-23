@@ -8,13 +8,15 @@ import (
 type config struct {
 	template string
 	data     string
+	selector string
 }
 
 var conf config
 
-func parse() {
+func parseFlags() {
 	flag.StringVar(&conf.template, "t", "", "path to template (required)")
 	flag.StringVar(&conf.data, "d", "", "path to data")
+	flag.StringVar(&conf.selector, "s", "", "path in YAML to get data")
 
 	flag.Parse()
 

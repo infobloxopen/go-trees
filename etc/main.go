@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	parse()
-	execute(conf.template, load(conf.data), makePrefix(conf.template))
+	parseFlags()
+	execute(conf.template, load(conf.data, conf.selector), makePrefix(conf.template))
 }
 
 func execute(name string, data interface{}, prefix []string) {
