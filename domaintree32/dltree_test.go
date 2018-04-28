@@ -5,7 +5,6 @@ package domaintree32
 import (
 	"fmt"
 	"testing"
-	"unsafe"
 
 	"github.com/pmezard/go-difflib/difflib"
 
@@ -14,10 +13,6 @@ import (
 
 func TestLabelNewTree(t *testing.T) {
 	r := newLabelTree()
-	var ln node
-	var n Node
-	t.Logf("Label: %d, Tree: %d", unsafe.Sizeof(ln), unsafe.Sizeof(n))
-
 	assertLabelTree(r, TestEmptyTree, "empty tree", t)
 }
 
