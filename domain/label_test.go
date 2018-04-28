@@ -1,398 +1,136 @@
 package domain
 
-import (
-	"bytes"
-	"testing"
-)
+import "testing"
 
-func TestGetFirstLabelSize(t *testing.T) {
-	name := "example"
-	esize := 7
-	enext := 7
-	size, next := GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
+func TestLabelMarkLabels(t *testing.T) {
+	s := "one.two.three.four.five"
+
+	var offs [5]int
+	n, err := markLabels(s, offs[:])
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	name = "example.com"
-	esize = 7
-	enext = 7
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
+	if n != 5 {
+		t.Fatalf("expected 5 labels but got %d:\n%#v", n, offs[:n])
 	}
 
-	name = "example\\.dot.com"
-	esize = 11
-	enext = 12
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "example\\\\slash"
-	esize = 13
-	enext = 14
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "example\\aletter"
-	esize = 14
-	enext = 15
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "example\\065letter"
-	esize = 14
-	enext = 17
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleletter\\065"
-	esize = 14
-	enext = 17
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleletter\\065."
-	esize = 14
-	enext = 17
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleletter\\065\\."
-	esize = 15
-	enext = 19
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleletter\\065\\\\"
-	esize = 15
-	enext = 19
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "example\\0invalid"
-	esize = 16
-	enext = 16
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "example\\06invalid"
-	esize = 17
-	enext = 17
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleinvalid\\0."
-	esize = 16
-	enext = 16
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleinvalid\\0\\."
-	esize = 17
-	enext = 18
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "example\\999invalid"
-	esize = 18
-	enext = 18
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleinvalid\\"
-	esize = 15
-	enext = 15
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleinvalid\\9"
-	esize = 16
-	enext = 16
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleinvalid\\99"
-	esize = 17
-	enext = 17
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
-	}
-
-	name = "exampleinvalid\\999"
-	esize = 18
-	enext = 18
-	size, next = GetFirstLabelSize(name)
-	if size != esize || next != enext {
-		t.Errorf("expected %d bytes from %d bytes in %q domain label but got %d (%d)",
-			esize, enext, name, size, next)
+	eOffs := []int{0, 4, 8, 14, 19}
+	for i, off := range eOffs {
+		if offs[i] != off {
+			t.Fatalf("expected offsets\n\t%#v\nbut got\n\t%#v", eOffs, offs[:n])
+		}
 	}
 }
 
-func TestMakeDomainLabel(t *testing.T) {
-	name := "example"
-	data := []byte("example")
-	dl, _ := MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
+func TestLabelMarkLabelsWithEndingDot(t *testing.T) {
+	s := "one.two.three.four.five."
+
+	var offs [5]int
+	n, err := markLabels(s, offs[:])
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	name = "eXaMpLe"
-	data = []byte("example")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
+	if n != 5 {
+		t.Fatalf("expected 5 labels but got %d:\n%#v", n, offs[:n])
 	}
 
-	name = "example.com"
-	data = []byte("example")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\.dot.com"
-	data = []byte("example.dot")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\\\slash"
-	data = []byte("example\\slash")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\aletter"
-	data = []byte("examplealetter")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\Aletter"
-	data = []byte("examplealetter")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\065letter"
-	data = []byte("examplealetter")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\065Letter"
-	data = []byte("examplealetter")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleletter\\065"
-	data = []byte("examplelettera")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleletter\\065."
-	data = []byte("examplelettera")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleletter\\065\\."
-	data = []byte("examplelettera.")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleletter\\065\\\\"
-	data = []byte("examplelettera\\")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\0invalid"
-	data = []byte("example\\0invalid")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\0Invalid"
-	data = []byte("example\\0invalid")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\06invalid"
-	data = []byte("example\\06invalid")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleinvalid\\0."
-	data = []byte("exampleinvalid\\0")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleinvalid\\0\\."
-	data = []byte("exampleinvalid\\0.")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "example\\999invalid"
-	data = []byte("example\\999invalid")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleinvalid\\"
-	data = []byte("exampleinvalid\\")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleinvalid\\9"
-	data = []byte("exampleinvalid\\9")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleinvalid\\99"
-	data = []byte("exampleinvalid\\99")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
-	}
-
-	name = "exampleinvalid\\999"
-	data = []byte("exampleinvalid\\999")
-	dl, _ = MakeLabel(name)
-	if bytes.Compare(dl, data) != 0 {
-		t.Errorf("got %d (% x) bytes for %q", len(dl), dl, name)
+	eOffs := []int{0, 4, 8, 14, 19}
+	for i, off := range eOffs {
+		if offs[i] != off {
+			t.Fatalf("expected offsets\n\t%#v\nbut got\n\t%#v", eOffs, offs[:n])
+		}
 	}
 }
 
-func TestString(t *testing.T) {
-	in := "example\\009\\.\\128\\013\\\\"
-	dl, _ := MakeLabel(in)
-	out := dl.String()
-	if out != in {
-		t.Errorf("expected %q for domanin label (% x) but got %q", in, dl, out)
+func TestLabelMarkLabelsWithEmptyLabel(t *testing.T) {
+	s := "one.two..four.five"
+
+	var offs [5]int
+	n, err := markLabels(s, offs[:])
+	if err == nil {
+		t.Fatalf("expected error but got %d offsets:\n%#v", n, offs[:n])
+	}
+
+	if err != ErrEmptyLabel {
+		t.Fatalf("expected ErrEmptyLabel but got %q (%T)", err, err)
 	}
 }
 
-func TestCompare(t *testing.T) {
-	aName := "short"
-	bName := "muchlonger"
-	a, _ := MakeLabel(aName)
-	b, _ := MakeLabel(bName)
+func TestLabelMarkLabelsWithTooManyLabels(t *testing.T) {
+	s := "0.1.2.3.4.5"
 
-	d := Compare(a, b)
-	if d >= 0 {
-		t.Errorf("expected less than zero result but got %d", d)
+	var offs [5]int
+	n, err := markLabels(s, offs[:])
+	if err == nil {
+		t.Fatalf("expected error but got %d offsets:\n%#v", n, offs[:n])
 	}
 
-	d = Compare(b, a)
-	if d <= 0 {
-		t.Errorf("expected greater than zero result but got %d", d)
+	if err != ErrTooManyLabels {
+		t.Fatalf("expected ErrTooManyLabels but got %q (%T)", err, err)
+	}
+}
+
+func TestLabelMarkLabelsWithMoreTooManyLabels(t *testing.T) {
+	s := "0.1.2.3.4.5.6.7.8.9"
+
+	var offs [5]int
+	n, err := markLabels(s, offs[:])
+	if err == nil {
+		t.Fatalf("expected error but got %d offsets:\n%#v", n, offs[:n])
 	}
 
-	aName = "aaa"
-	bName = "bbb"
-	a, _ = MakeLabel(aName)
-	b, _ = MakeLabel(bName)
+	if err != ErrTooManyLabels {
+		t.Fatalf("expected ErrTooManyLabels but got %q (%T)", err, err)
+	}
+}
 
-	d = Compare(a, b)
-	if d >= 0 {
-		t.Errorf("expected less than zero result but got %d", d)
+func TestLabelGetLabel(t *testing.T) {
+	var label [MaxLabel + 1]byte
+
+	n, err := getLabel("label", label[:])
+	if err != nil {
+		t.Fatalf("label but got error: %s", err)
 	}
 
-	d = Compare(b, a)
-	if d <= 0 {
-		t.Errorf("expected less than zero result but got %d", d)
+	assertLabel(t, label[:n], []byte{5, 'L', 'A', 'B', 'E', 'L'})
+}
+
+func TestLabelGetLabelWithEndingDot(t *testing.T) {
+	var label [MaxLabel + 1]byte
+
+	n, err := getLabel("label.", label[:])
+	if err != nil {
+		t.Fatalf("label but got error: %s", err)
 	}
 
-	aName = "equal"
-	bName = "equal"
-	a, _ = MakeLabel(aName)
-	b, _ = MakeLabel(bName)
+	assertLabel(t, label[:n], []byte{5, 'L', 'A', 'B', 'E', 'L'})
+}
 
-	d = Compare(a, b)
-	if d != 0 {
-		t.Errorf("expected zero but got %d", d)
+func TestLabelGetLabelWithLabelTooLong(t *testing.T) {
+	var label [MaxLabel + 1]byte
+
+	n, err := getLabel("0123456789012345678901234567890123456789012345678901234567890123", label[:])
+	if err == nil {
+		t.Fatalf("expected error but got label:\n%#v", label[:n])
 	}
 
-	d = Compare(b, a)
-	if d != 0 {
-		t.Errorf("expected zero but got %d", d)
+	if err != ErrLabelTooLong {
+		t.Fatalf("expected ErrLabelTooLong but got %q (%T)", err, err)
+	}
+}
+
+func assertLabel(t *testing.T, v, e []byte) {
+	if len(v) != len(e) {
+		t.Errorf("expected %d bytes\n\t%#v\nbut got %d\n\t%#v", len(e), e, len(v), v)
+		return
+	}
+
+	for i, b := range e {
+		if v[i] != b {
+			t.Errorf("expected label\n\t%#v\nbut got\n\t%#v", e, v)
+			return
+		}
 	}
 }

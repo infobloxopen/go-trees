@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -1033,16 +1034,18 @@ var (
 		"xkbisrk.gxgryyxblkry.snkxapcpqyk",
 	}
 
-	names  []WireNameLower
-	labels [][][]byte
+	names  []Name
+	labels [][]string
+
+	errStop = errors.New("stop iteration")
 )
 
 func init() {
-	names = make([]WireNameLower, len(strs))
-	labels = make([][][]byte, len(strs))
+	names = make([]Name, len(strs))
+	labels = make([][]string, len(strs))
 
 	for i, s := range strs {
-		n, err := MakeWireDomainNameLower(s)
+		n, err := MakeNameFromString(s)
 		if err != nil {
 			panic(err)
 		}
@@ -1050,13 +1053,13 @@ func init() {
 		names[i] = n
 
 		seq := strings.Split(s, ".")
-		inv := make([][]byte, len(seq))
-		last := len(inv) - 1
+		rev := make([]string, len(seq))
+		last := len(rev) - 1
 		for i, s := range seq {
-			inv[last-i] = []byte(strings.ToLower(s))
+			rev[last-i] = strings.ToUpper(s)
 		}
 
-		labels[i] = inv
+		labels[i] = rev
 	}
 }
 
@@ -1067,15 +1070,17 @@ func BenchmarkDomainComparison(b *testing.B) {
 		seq := labels[i]
 
 		j := 0
-		WireSplitCallback(name, func(lbl []byte) bool {
-			if Compare(lbl, seq[j]) == 0 {
+		if err := name.GetLabels(func(s string) error {
+			sl := seq[j]
+			if len(s) == len(sl) && s == sl {
 				j++
-				return true
+				return nil
 			}
 
+			return errStop
+		}); err != nil {
 			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
-			return false
-		})
+		}
 	}
 }
 
@@ -1085,20 +1090,67 @@ func BenchmarkDomainComparisonWithConversion(b *testing.B) {
 		seq := labels[i]
 
 		s := strs[i]
-		name, err := MakeWireDomainNameLower(s)
+		name, err := MakeNameFromString(s)
 		if err != nil {
 			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
 		}
 
 		j := 0
-		WireSplitCallback(name, func(lbl []byte) bool {
-			if Compare(lbl, seq[j]) == 0 {
+		if err := name.GetLabels(func(s string) error {
+			sl := seq[j]
+			if len(s) == len(sl) && s == sl {
 				j++
-				return true
+				return nil
 			}
 
+			return errStop
+		}); err != nil {
 			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
-			return false
-		})
+		}
+	}
+}
+
+func BenchmarkDomainComparisonWithStringsCompare(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		i := n & 1023
+		name := names[i]
+		seq := labels[i]
+
+		j := 0
+		if err := name.GetLabels(func(s string) error {
+			if strings.Compare(s, seq[j]) == 0 {
+				j++
+				return nil
+			}
+
+			return errStop
+		}); err != nil {
+			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
+		}
+	}
+}
+
+func BenchmarkDomainComparisonWithConversionAndStringsCompare(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		i := n & 1023
+		seq := labels[i]
+
+		s := strs[i]
+		name, err := MakeNameFromString(s)
+		if err != nil {
+			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
+		}
+
+		j := 0
+		if err := name.GetLabels(func(s string) error {
+			if strings.Compare(s, seq[j]) == 0 {
+				j++
+				return nil
+			}
+
+			return errStop
+		}); err != nil {
+			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
+		}
 	}
 }
