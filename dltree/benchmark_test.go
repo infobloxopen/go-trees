@@ -1034,12 +1034,12 @@ var (
 		"enhtjlpn",
 	}
 
-	labels [][]byte
+	labels []string
 	tree   *Tree
 )
 
 func init() {
-	labels = make([][]byte, len(strs))
+	labels = make([]string, len(strs))
 	tree = NewTree()
 	for i, s := range strs {
 		lbl, _ := domain.MakeLabel(s)
