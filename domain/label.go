@@ -12,6 +12,68 @@ const (
 	escThirdDigit
 )
 
+// MakeLabel makes uppercase domain label from given human-readable representation. Ignores ending dot.
+func MakeLabel(s string) (string, error) {
+	var label [MaxLabel + 1]byte
+
+	n, err := getLabel(s, label[:])
+	if err != nil {
+		return "", err
+	}
+
+	return string(label[1:n]), nil
+}
+
+// MakeHumanReadableLabel makes human-readable label by escaping according RFC-4343.
+func MakeHumanReadableLabel(s string) string {
+	var label [4 * MaxLabel]byte
+
+	j := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '.' || c == '\\' {
+			if j >= len(label)-1 {
+				return string(label[:j])
+			}
+
+			label[j] = '\\'
+			label[j+1] = c
+			j += 2
+
+		} else if c < '!' || c > '~' {
+			if j >= len(label)-3 {
+				return string(label[:j])
+			}
+
+			label[j] = '\\'
+
+			r := c % 10
+			label[j+3] = r + '0'
+
+			c /= 10
+			r = c % 10
+			label[j+2] = r + '0'
+
+			c /= 10
+			label[j+1] = c + '0'
+
+			j += 4
+		} else if c >= 'A' && c <= 'Z' {
+			label[j] = c | 0x20
+			j++
+		} else {
+			if j >= len(label) {
+				return string(label[:j])
+			}
+
+			label[j] = c
+			j++
+		}
+	}
+
+	return string(label[:j])
+}
+
 func markLabels(s string, offs []int) (int, error) {
 	n := 0
 	start := 0
