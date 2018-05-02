@@ -48,19 +48,19 @@ func TestLabelMarkLabelsWithEndingDot(t *testing.T) {
 }
 
 func TestLabelMarkLabelsWithEscapes(t *testing.T) {
-	s := "one\\.two.th\\\\ree.four.five"
+	s := "one\\.two.th\\\\ree.four.five.\\115\\105\\120"
 
-	var offs [4]int
+	var offs [5]int
 	n, err := markLabels(s, offs[:])
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if n != 4 {
-		t.Fatalf("expected 4 labels but got %d:\n%#v", n, offs[:n])
+	if n != 5 {
+		t.Fatalf("expected 5 labels but got %d:\n%#v", n, offs[:n])
 	}
 
-	eOffs := []int{0, 9, 17, 22}
+	eOffs := []int{0, 9, 17, 22, 27}
 	for i, off := range eOffs {
 		if offs[i] != off {
 			t.Fatalf("expected offsets\n\t%#v\nbut got\n\t%#v", eOffs, offs[:n])
@@ -79,6 +79,45 @@ func TestLabelMarkLabelsWithInvalidEscape(t *testing.T) {
 
 	if err != ErrInvalidEscape {
 		t.Fatalf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+}
+
+func TestLabelMarkLabelsWithInvalidEscapedDigits(t *testing.T) {
+	var offs [MaxLabels]int
+
+	n, err := markLabels("invalid\\512", offs[:])
+	if err == nil {
+		t.Errorf("expected error but got %d offsets:\n%#v", n, offs[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = markLabels("invalid\\2ff", offs[:])
+	if err == nil {
+		t.Errorf("expected error but got %d offsets:\n%#v", n, offs[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = markLabels("invalid\\260", offs[:])
+	if err == nil {
+		t.Errorf("expected error but got %d offsets:\n%#v", n, offs[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = markLabels("invalid\\25f", offs[:])
+	if err == nil {
+		t.Errorf("expected error but got %d offsets:\n%#v", n, offs[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = markLabels("invalid\\256", offs[:])
+	if err == nil {
+		t.Errorf("expected error but got %d offsets:\n%#v", n, offs[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
 	}
 }
 
@@ -175,12 +214,12 @@ func TestLabelGetLabelWithDot(t *testing.T) {
 func TestLabelGetLabelWithEscapes(t *testing.T) {
 	var label [MaxLabel + 1]byte
 
-	n, err := getLabel("\\l\\a\\.\\\\\\b\\e\\l.", label[:])
+	n, err := getLabel("\\l\\a\\.\\\\\\b\\101\\l\\046.", label[:])
 	if err != nil {
 		t.Fatalf("expected label but got error: %s", err)
 	}
 
-	assertLabel(t, label[:n], []byte{7, 'L', 'A', '.', '\\', 'B', 'E', 'L'})
+	assertLabel(t, label[:n], []byte{8, 'L', 'A', '.', '\\', 'B', 'E', 'L', '.'})
 }
 
 func TestLabelGetLabelWithInvalidEscape(t *testing.T) {
@@ -193,6 +232,45 @@ func TestLabelGetLabelWithInvalidEscape(t *testing.T) {
 
 	if err != ErrInvalidEscape {
 		t.Fatalf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+}
+
+func TestLabelGetLabelWithInvalidEscapedDigits(t *testing.T) {
+	var label [MaxLabel + 1]byte
+
+	n, err := getLabel("invalid\\512", label[:])
+	if err == nil {
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = getLabel("invalid\\2ff", label[:])
+	if err == nil {
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = getLabel("invalid\\260", label[:])
+	if err == nil {
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = getLabel("invalid\\25f", label[:])
+	if err == nil {
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
+	}
+
+	n, err = getLabel("invalid\\256", label[:])
+	if err == nil {
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrInvalidEscape {
+		t.Errorf("expected ErrInvalidEscape but got %q (%T)", err, err)
 	}
 }
 
@@ -214,11 +292,16 @@ func TestLabelGetLabelWithEscapedLabelTooLong(t *testing.T) {
 
 	n, err := getLabel("looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooon\\g", label[:])
 	if err == nil {
-		t.Fatalf("expected error but got label:\n%#v", label[:n])
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrLabelTooLong {
+		t.Errorf("expected ErrLabelTooLong but got %q (%T)", err, err)
 	}
 
-	if err != ErrLabelTooLong {
-		t.Fatalf("expected ErrLabelTooLong but got %q (%T)", err, err)
+	n, err = getLabel("looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooon\\103", label[:])
+	if err == nil {
+		t.Errorf("expected error but got label:\n%#v", label[:n])
+	} else if err != ErrLabelTooLong {
+		t.Errorf("expected ErrLabelTooLong but got %q (%T)", err, err)
 	}
 }
 
