@@ -1078,3 +1078,27 @@ func BenchmarkDomainComparison(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkDomainComparisonWithConversion(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		i := n & 1023
+		seq := labels[i]
+
+		s := strs[i]
+		name, err := MakeWireDomainNameLower(s)
+		if err != nil {
+			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
+		}
+
+		j := 0
+		WireSplitCallback(name, func(lbl []byte) bool {
+			if Compare(lbl, seq[j]) == 0 {
+				j++
+				return true
+			}
+
+			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
+			return false
+		})
+	}
+}
