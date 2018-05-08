@@ -1034,57 +1034,51 @@ var (
 		"xkbisrk.gxgryyxblkry.snkxapcpqyk",
 	}
 
-	names []domain.WireNameLower
+	names []domain.Name
 	tree  *Node
 )
 
 func init() {
-	names = make([]domain.WireNameLower, len(strs))
+	names = make([]domain.Name, len(strs))
 	tree = new(Node)
 
 	for i, s := range strs {
-		n, err := domain.MakeWireDomainNameLower(s)
+		n, err := domain.MakeNameFromString(s)
 		if err != nil {
 			panic(err)
 		}
 
 		names[i] = n
-		tree.InplaceInsert(s, "test")
+		tree.InplaceInsert(n, "test")
 	}
 }
 
-func BenchmarkDomainTreeWireGet(b *testing.B) {
+func BenchmarkDomainTreeGet(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		i := n & 1023
-		v, ok, err := tree.WireGet(names[i])
-		if err != nil {
-			b.Fatalf("can't get data for %q (%q) at %d (%d): %s", strs[i], names[i], n, i, err)
-		}
+		name := names[i]
 
+		v, ok := tree.Get(names[i])
 		if !ok {
-			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], names[i], n, i)
+			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], name, n, i)
 		}
 
 		if _, ok := v.(string); !ok {
-			b.Fatalf("expected string for %q (%q) at %d (%d) but got %T (%#v)", strs[i], names[i], n, i, v, v)
+			b.Fatalf("expected string for %q (%q) at %d (%d) but got %T (%#v)", strs[i], name, n, i, v, v)
 		}
 	}
 }
 
-func BenchmarkDomainTreeWireGetWithConversion(b *testing.B) {
+func BenchmarkDomainTreeGetWithConversion(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		i := n & 1023
 		s := strs[i]
-		name, err := domain.MakeWireDomainNameLower(s)
+		name, err := domain.MakeNameFromString(s)
 		if err != nil {
 			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
 		}
 
-		v, ok, err := tree.WireGet(name)
-		if err != nil {
-			b.Fatalf("can't get data for %q (%q) at %d (%d): %s", strs[i], names[i], n, i, err)
-		}
-
+		v, ok := tree.Get(name)
 		if !ok {
 			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], name, n, i)
 		}
