@@ -1036,33 +1036,29 @@ var (
 		"xkbisrk.gxgryyxblkry.snkxapcpqyk",
 	}
 
-	names []domain.WireNameLower
+	names []domain.Name
 	tree  *Node
 )
 
 func init() {
-	names = make([]domain.WireNameLower, len(strs))
+	names = make([]domain.Name, len(strs))
 	tree = new(Node)
 
 	for i, s := range strs {
-		n, err := domain.MakeWireDomainNameLower(s)
+		n, err := domain.MakeNameFromString(s)
 		if err != nil {
 			panic(err)
 		}
 
 		names[i] = n
-		tree.InplaceInsert(s, 0)
+		tree.InplaceInsert(n, 0)
 	}
 }
 
 func BenchmarkDomainTreeWireGet(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		i := n & 1023
-		_, ok, err := tree.WireGet(names[i])
-		if err != nil {
-			b.Fatalf("can't get data for %q (%q) at %d (%d): %s", strs[i], names[i], n, i, err)
-		}
-
+		_, ok := tree.Get(names[i])
 		if !ok {
 			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], names[i], n, i)
 		}
@@ -1073,16 +1069,12 @@ func BenchmarkDomainTreeWireGetWithConversion(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		i := n & 1023
 		s := strs[i]
-		name, err := domain.MakeWireDomainNameLower(s)
+		name, err := domain.MakeNameFromString(s)
 		if err != nil {
 			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
 		}
 
-		_, ok, err := tree.WireGet(name)
-		if err != nil {
-			b.Fatalf("can't get data for %q (%q) at %d (%d): %s", strs[i], names[i], n, i, err)
-		}
-
+		_, ok := tree.Get(name)
 		if !ok {
 			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], name, n, i)
 		}
