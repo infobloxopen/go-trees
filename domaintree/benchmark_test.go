@@ -1,8 +1,9 @@
-package domain
+package domaintree
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/infobloxopen/go-trees/domain"
 )
 
 var (
@@ -1033,72 +1034,63 @@ var (
 		"xkbisrk.gxgryyxblkry.snkxapcpqyk",
 	}
 
-	names  []WireNameLower
-	labels [][][]byte
+	names []domain.WireNameLower
+	tree  *Node
 )
 
 func init() {
-	names = make([]WireNameLower, len(strs))
-	labels = make([][][]byte, len(strs))
+	names = make([]domain.WireNameLower, len(strs))
+	tree = new(Node)
 
 	for i, s := range strs {
-		n, err := MakeWireDomainNameLower(s)
+		n, err := domain.MakeWireDomainNameLower(s)
 		if err != nil {
 			panic(err)
 		}
 
 		names[i] = n
+		tree.InplaceInsert(s, "test")
+	}
+}
 
-		seq := strings.Split(s, ".")
-		inv := make([][]byte, len(seq))
-		last := len(inv) - 1
-		for i, s := range seq {
-			inv[last-i] = []byte(strings.ToLower(s))
+func BenchmarkDomainTreeWireGet(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		i := n & 1023
+		v, ok, err := tree.WireGet(names[i])
+		if err != nil {
+			b.Fatalf("can't get data for %q (%q) at %d (%d): %s", strs[i], names[i], n, i, err)
 		}
 
-		labels[i] = inv
+		if !ok {
+			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], names[i], n, i)
+		}
+
+		if _, ok := v.(string); !ok {
+			b.Fatalf("expected string for %q (%q) at %d (%d) but got %T (%#v)", strs[i], names[i], n, i, v, v)
+		}
 	}
 }
 
-func BenchmarkDomainComparison(b *testing.B) {
+func BenchmarkDomainTreeWireGetWithConversion(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		i := n & 1023
-		name := names[i]
-		seq := labels[i]
-
-		j := 0
-		WireSplitCallback(name, func(lbl []byte) bool {
-			if Compare(lbl, seq[j]) == 0 {
-				j++
-				return true
-			}
-
-			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
-			return false
-		})
-	}
-}
-
-func BenchmarkDomainComparisonWithConversion(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		i := n & 1023
-		seq := labels[i]
-
 		s := strs[i]
-		name, err := MakeWireDomainNameLower(s)
+		name, err := domain.MakeWireDomainNameLower(s)
 		if err != nil {
 			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
 		}
 
-		j := 0
-		WireSplitCallback(name, func(lbl []byte) bool {
-			if Compare(lbl, seq[j]) == 0 {
-				j++
-				return true
-			}
+		v, ok, err := tree.WireGet(name)
+		if err != nil {
+			b.Fatalf("can't get data for %q (%q) at %d (%d): %s", strs[i], names[i], n, i, err)
+		}
 
-			b.Fatalf("not equal for %q at %d (%d:%d)", name, n, i, j)
-			return false
-		})
+		if !ok {
+			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], name, n, i)
+		}
+
+		if _, ok := v.(string); !ok {
+			b.Fatalf("expected string for %q (%q) at %d (%d) but got %T (%#v)", strs[i], name, n, i, v, v)
+		}
 	}
 }
