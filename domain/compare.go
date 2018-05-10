@@ -1,3 +1,5 @@
+//+build !amd64
+
 package domain
 
 import "strings"
