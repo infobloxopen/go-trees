@@ -2,7 +2,6 @@ package dltree
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/infobloxopen/go-trees/domain"
 )
@@ -169,7 +168,7 @@ func (n *node) insert(key string, value interface{}) *node {
 
 		r = len(n.key) - len(key)
 		if r == 0 {
-			r = strings.Compare(n.key, key)
+			r = domain.Compare(n.key, key)
 		}
 	}
 
@@ -240,7 +239,7 @@ func (n *node) inplaceInsert(key string, value interface{}) *node {
 
 		r = len(n.key) - len(key)
 		if r == 0 {
-			r = strings.Compare(n.key, key)
+			r = domain.Compare(n.key, key)
 		}
 	}
 
@@ -288,7 +287,7 @@ func (n *node) get(key string) (interface{}, bool) {
 	for n != nil {
 		r := len(n.key) - len(key)
 		if r == 0 {
-			r = strings.Compare(n.key, key)
+			r = domain.Compare(n.key, key)
 			if r == 0 {
 				return n.value, true
 			}
@@ -361,7 +360,7 @@ func (n *node) del(key string) (*node, bool) {
 		dir = dirLeft
 		r := len(n.key) - len(key)
 		if r == 0 {
-			r = strings.Compare(n.key, key)
+			r = domain.Compare(n.key, key)
 		}
 		if r < 0 {
 			dir = dirRight
