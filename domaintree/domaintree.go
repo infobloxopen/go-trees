@@ -31,8 +31,8 @@ func (n *Node) Insert(d domain.Name, v interface{}) *Node {
 	n = n.copy()
 	r := n
 
-	d.GetLabels(func(label string) error {
-		item, ok := n.branches.RawGet(label)
+	d.GetLabels(func(label string, size int) error {
+		item, ok := n.branches.RawGet(label, size)
 		var next *Node
 		if ok {
 			next = item.(*Node).copy()
@@ -40,7 +40,7 @@ func (n *Node) Insert(d domain.Name, v interface{}) *Node {
 			next = new(Node)
 		}
 
-		n.branches = n.branches.RawInsert(label, next)
+		n.branches = n.branches.RawInsert(label, size, next)
 		n = next
 
 		return nil
@@ -58,13 +58,13 @@ func (n *Node) InplaceInsert(d domain.Name, v interface{}) {
 		n.branches = dltree.NewTree()
 	}
 
-	d.GetLabels(func(label string) error {
-		item, ok := n.branches.RawGet(label)
+	d.GetLabels(func(label string, size int) error {
+		item, ok := n.branches.RawGet(label, size)
 		if ok {
 			n = item.(*Node)
 		} else {
 			next := &Node{branches: dltree.NewTree()}
-			n.branches.RawInplaceInsert(label, next)
+			n.branches.RawInplaceInsert(label, size, next)
 			n = next
 		}
 
@@ -93,8 +93,8 @@ func (n *Node) Get(d domain.Name) (interface{}, bool) {
 		return nil, false
 	}
 
-	d.GetLabels(func(label string) error {
-		item, ok := n.branches.RawGet(label)
+	d.GetLabels(func(label string, size int) error {
+		item, ok := n.branches.RawGet(label, size)
 		if !ok {
 			return errStopIterations
 		}
@@ -114,10 +114,11 @@ func (n *Node) DeleteSubdomains(d domain.Name) (*Node, bool) {
 
 	var (
 		labels [domain.MaxLabels]string
+		sizes  [domain.MaxLabels]int
 		nodes  [domain.MaxLabels]*Node
 	)
 
-	i := n.getBranch(d, labels[:], nodes[:])
+	i := n.getBranch(d, labels[:], sizes[:], nodes[:])
 	if i >= len(nodes) || !nodes[i].hasValue && n.branches.IsEmpty() {
 		return n, false
 	}
@@ -128,10 +129,10 @@ func (n *Node) DeleteSubdomains(d domain.Name) (*Node, bool) {
 	}
 
 	n = nodes[i].copy()
-	n.branches, _ = n.branches.RawDelete(labels[i])
+	n.branches, _ = n.branches.RawDelete(labels[i], sizes[i])
 	i++
 
-	return n.copyBranch(labels[i:], nodes[i:]), true
+	return n.copyBranch(labels[i:], sizes[i:], nodes[i:]), true
 }
 
 // Delete removes current domain only. It returns new tree and flag if deletion indeed occurs.
@@ -142,10 +143,11 @@ func (n *Node) Delete(d domain.Name) (*Node, bool) {
 
 	var (
 		labels [domain.MaxLabels]string
+		sizes  [domain.MaxLabels]int
 		nodes  [domain.MaxLabels]*Node
 	)
 
-	i := n.getBranch(d, labels[:], nodes[:])
+	i := n.getBranch(d, labels[:], sizes[:], nodes[:])
 	if i >= len(nodes) || !nodes[i].hasValue {
 		return n, false
 	}
@@ -164,13 +166,13 @@ func (n *Node) Delete(d domain.Name) (*Node, bool) {
 
 	n = nodes[i].copy()
 	if branches.IsEmpty() {
-		n.branches, _ = n.branches.RawDelete(labels[i])
+		n.branches, _ = n.branches.RawDelete(labels[i], sizes[i])
 	} else {
-		n.branches = n.branches.RawInsert(labels[i], &Node{branches: branches})
+		n.branches = n.branches.RawInsert(labels[i], sizes[i], &Node{branches: branches})
 	}
 	i++
 
-	return n.copyBranch(labels[i:], nodes[i:]), true
+	return n.copyBranch(labels[i:], sizes[i:], nodes[i:]), true
 }
 
 func (n *Node) copy() *Node {
@@ -207,14 +209,15 @@ func (n *Node) enumerate(s string, ch chan Pair) {
 	}
 }
 
-func (n *Node) getBranch(d domain.Name, labels []string, nodes []*Node) int {
+func (n *Node) getBranch(d domain.Name, labels []string, sizes []int, nodes []*Node) int {
 	i := len(labels) - 1
 	nodes[i] = n
 
-	if err := d.GetLabels(func(label string) error {
+	if err := d.GetLabels(func(label string, size int) error {
 		labels[i] = label
+		sizes[i] = size
 
-		next, ok := n.branches.RawGet(label)
+		next, ok := n.branches.RawGet(label, size)
 		if !ok {
 			return errStopIterations
 		}
@@ -231,13 +234,13 @@ func (n *Node) getBranch(d domain.Name, labels []string, nodes []*Node) int {
 	return i
 }
 
-func (n *Node) copyBranch(labels []string, nodes []*Node) *Node {
+func (n *Node) copyBranch(labels []string, sizes []int, nodes []*Node) *Node {
 	for i, p := range nodes {
 		p = p.copy()
 		if !n.hasValue && n.branches.IsEmpty() {
-			p.branches, _ = p.branches.RawDelete(labels[i])
+			p.branches, _ = p.branches.RawDelete(labels[i], sizes[i])
 		} else {
-			p.branches = p.branches.RawInsert(labels[i], n)
+			p.branches = p.branches.RawInsert(labels[i], sizes[i], n)
 		}
 
 		n = p
