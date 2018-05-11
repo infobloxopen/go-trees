@@ -76,11 +76,7 @@ func (t *Tree) Get(key string) (interface{}, bool) {
 
 // RawGet returns value by given key. Expects bindary domain label on input.
 func (t *Tree) RawGet(key string, size int) (interface{}, bool) {
-	if t == nil {
-		return nil, false
-	}
-
-	return t.root.get(key, size)
+	return treeRawGet(t, key, size)
 }
 
 // Enumerate returns channel which is populated by key pair values in order of keys.
