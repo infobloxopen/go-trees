@@ -12,8 +12,9 @@ const (
 )
 
 type node struct {
-	key   string
-	value interface{}
+	key     string
+	keySize int
+	value   interface{}
 
 	chld [2]*node
 	red  bool
@@ -47,7 +48,7 @@ func (n *node) dotString() string {
 		return "[label=\"nil\" style=filled fontcolor=white fillcolor=black]"
 	}
 
-	k := fmt.Sprintf("%q", n.key)
+	k := fmt.Sprintf("%q", n.key[:n.keySize])
 	if n.value != nil {
 		v := fmt.Sprintf("%q", fmt.Sprintf("%#v", n.value))
 		k = fmt.Sprintf("\"k: \\\"%s\\\" v: \\\"%s\\\"\"", k[1:len(k)-1], v[1:len(v)-1])
@@ -61,9 +62,9 @@ func (n *node) dotString() string {
 	return fmt.Sprintf("[label=%s style=filled %s]", k, color)
 }
 
-func (n *node) insert(key string, value interface{}) *node {
+func (n *node) insert(key string, keySize int, value interface{}) *node {
 	if n == nil {
-		return &node{key: key, value: value}
+		return &node{key: key, keySize: keySize, value: value}
 	}
 
 	// Using fake root to get rid of corner cases with rotation right under the root.
@@ -109,8 +110,9 @@ func (n *node) insert(key string, value interface{}) *node {
 		if n == nil {
 			// If no child in the direction we go insert new red node.
 			n = &node{
-				key: key,
-				red: true}
+				key:     key,
+				keySize: keySize,
+				red:     true}
 
 			c = [2]*node{nil, nil}
 		} else {
@@ -166,7 +168,7 @@ func (n *node) insert(key string, value interface{}) *node {
 			}
 		}
 
-		r = len(n.key) - len(key)
+		r = n.keySize - keySize
 		if r == 0 {
 			r = domain.Compare(n.key, key)
 		}
@@ -179,9 +181,9 @@ func (n *node) insert(key string, value interface{}) *node {
 	return n
 }
 
-func (n *node) inplaceInsert(key string, value interface{}) *node {
+func (n *node) inplaceInsert(key string, keySize int, value interface{}) *node {
 	if n == nil {
-		return &node{key: key, value: value}
+		return &node{key: key, keySize: keySize, value: value}
 	}
 
 	root := &node{chld: [2]*node{nil, n}}
@@ -210,8 +212,9 @@ func (n *node) inplaceInsert(key string, value interface{}) *node {
 
 		if n == nil {
 			n = &node{
-				key: key,
-				red: true}
+				key:     key,
+				keySize: keySize,
+				red:     true}
 
 			p.chld[dir] = n
 		} else {
@@ -237,7 +240,7 @@ func (n *node) inplaceInsert(key string, value interface{}) *node {
 			}
 		}
 
-		r = len(n.key) - len(key)
+		r = n.keySize - keySize
 		if r == 0 {
 			r = domain.Compare(n.key, key)
 		}
@@ -252,18 +255,20 @@ func (n *node) inplaceInsert(key string, value interface{}) *node {
 
 func (n *node) fullCopy() *node {
 	return &node{
-		key:   n.key,
-		value: n.value,
-		chld:  n.chld,
-		red:   n.red}
+		key:     n.key,
+		keySize: n.keySize,
+		value:   n.value,
+		chld:    n.chld,
+		red:     n.red}
 }
 
 func (n *node) colorCopy(color bool) *node {
 	return &node{
-		key:   n.key,
-		value: n.value,
-		chld:  n.chld,
-		red:   color}
+		key:     n.key,
+		keySize: n.keySize,
+		value:   n.value,
+		chld:    n.chld,
+		red:     color}
 }
 
 func (n *node) single(dir int) *node {
@@ -283,9 +288,9 @@ func (n *node) double(dir int) *node {
 	return n.single(dir)
 }
 
-func (n *node) get(key string) (interface{}, bool) {
+func (n *node) get(key string, keySize int) (interface{}, bool) {
 	for n != nil {
-		r := len(n.key) - len(key)
+		r := n.keySize - keySize
 		if r == 0 {
 			r = domain.Compare(n.key, key)
 			if r == 0 {
@@ -311,24 +316,24 @@ func (n *node) enumerate(ch chan Pair) {
 
 	n.chld[dirLeft].enumerate(ch)
 
-	ch <- Pair{Key: domain.MakeHumanReadableLabel(n.key), Value: n.value}
+	ch <- Pair{Key: domain.MakeHumanReadableLabel(n.key, n.keySize), Value: n.value}
 
 	n.chld[dirRight].enumerate(ch)
 }
 
-func (n *node) rawEnumerate(ch chan Pair) {
+func (n *node) rawEnumerate(ch chan RawPair) {
 	if n == nil {
 		return
 	}
 
 	n.chld[dirLeft].rawEnumerate(ch)
 
-	ch <- Pair{Key: n.key, Value: n.value}
+	ch <- RawPair{Key: n.key, Size: n.keySize, Value: n.value}
 
 	n.chld[dirRight].rawEnumerate(ch)
 }
 
-func (n *node) del(key string) (*node, bool) {
+func (n *node) del(key string, keySize int) (*node, bool) {
 	// Fake root.
 	root := &node{chld: [2]*node{nil, n}}
 
@@ -358,7 +363,7 @@ func (n *node) del(key string) (*node, bool) {
 		n = n.chld[dir]
 
 		dir = dirLeft
-		r := len(n.key) - len(key)
+		r := n.keySize - keySize
 		if r == 0 {
 			r = domain.Compare(n.key, key)
 		}
@@ -414,6 +419,7 @@ func (n *node) del(key string) (*node, bool) {
 
 	if t != nil {
 		t.key = n.key
+		t.keySize = n.keySize
 		t.value = n.value
 
 		dir = dirLeft

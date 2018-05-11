@@ -18,7 +18,7 @@ func TestNameMakeNameFromString(t *testing.T) {
 		t.Errorf("expected %q as human-readable name but got %q", s, n.h)
 	}
 
-	e := "\x03COM\x07EXAMPLE\x04WIKI"
+	e := "\x03COM\x00\x00\x00\x00\x00\x07EXAMPLE\x00\x04WIKI\x00\x00\x00\x00"
 	if n.c != e {
 		t.Errorf("expected %q as name for comparison but got %q", e, n.c)
 	}
@@ -197,22 +197,25 @@ func TestGetLabel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lbls := []string{}
+	fullLbls := []string{}
+	shortLbls := []string{}
 	off := 0
 	for {
-		lbl, next := n.GetLabel(off)
+		lbl, n, next := n.GetLabel(off)
 		if next < 0 {
-			t.Fatalf("expected nonnegative offset but got %d after %d (%#v)", next, off, lbls)
+			t.Fatalf("expected nonnegative offset but got %d after %d (%#v)", next, off, fullLbls)
 		}
 
-		lbls = append(lbls, lbl)
+		fullLbls = append(fullLbls, lbl)
+		shortLbls = append(shortLbls, lbl[:n])
 		off = next
 		if off == 0 {
 			break
 		}
 	}
 
-	assertLabels(t, lbls, []string{"COM", "EXAMPLE", "WIKI"})
+	assertLabels(t, fullLbls, []string{"COM\x00\x00\x00\x00\x00", "EXAMPLE\x00", "WIKI\x00\x00\x00\x00"})
+	assertLabels(t, shortLbls, []string{"COM", "EXAMPLE", "WIKI"})
 }
 
 func TestGetLabelWithRoot(t *testing.T) {
@@ -222,22 +225,25 @@ func TestGetLabelWithRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lbls := []string{}
+	fullLbls := []string{}
+	shortLbls := []string{}
 	off := 0
 	for {
-		lbl, next := n.GetLabel(off)
+		lbl, n, next := n.GetLabel(off)
 		if next < 0 {
-			t.Fatalf("expected nonnegative offset but got %d after %d (%#v)", next, off, lbls)
+			t.Fatalf("expected nonnegative offset but got %d after %d (%#v)", next, off, fullLbls)
 		}
 
-		lbls = append(lbls, lbl)
+		fullLbls = append(fullLbls, lbl)
+		shortLbls = append(shortLbls, lbl[:n])
 		off = next
 		if off == 0 {
 			break
 		}
 	}
 
-	assertLabels(t, lbls, []string{""})
+	assertLabels(t, fullLbls, []string{""})
+	assertLabels(t, shortLbls, []string{""})
 }
 
 func TestGetLabelWithInvalidOffset(t *testing.T) {
@@ -247,17 +253,17 @@ func TestGetLabelWithInvalidOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lbl, off := n.GetLabel(-1)
+	lbl, _, off := n.GetLabel(-1)
 	if off >= 0 {
 		t.Errorf("expected negative offset but got label %q", lbl)
 	}
 
-	lbl, off = n.GetLabel(len(n.c))
+	lbl, _, off = n.GetLabel(len(n.c))
 	if off >= 0 {
 		t.Errorf("expected negative offset but got label %q", lbl)
 	}
 
-	lbl, off = n.GetLabel(2)
+	lbl, _, off = n.GetLabel(2)
 	if off >= 0 {
 		t.Errorf("expected negative offset but got label %q", lbl)
 	}
@@ -270,15 +276,18 @@ func TestGetLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lbls := []string{}
-	if err := n.GetLabels(func(lbl string) error {
-		lbls = append(lbls, lbl)
+	fullLbls := []string{}
+	shortLbls := []string{}
+	if err := n.GetLabels(func(lbl string, n int) error {
+		fullLbls = append(fullLbls, lbl)
+		shortLbls = append(shortLbls, lbl[:n])
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	assertLabels(t, lbls, []string{"COM", "EXAMPLE", "WIKI"})
+	assertLabels(t, fullLbls, []string{"COM\x00\x00\x00\x00\x00", "EXAMPLE\x00", "WIKI\x00\x00\x00\x00"})
+	assertLabels(t, shortLbls, []string{"COM", "EXAMPLE", "WIKI"})
 }
 
 func TestGetLabelsWithError(t *testing.T) {
@@ -291,8 +300,8 @@ func TestGetLabelsWithError(t *testing.T) {
 	stop := fmt.Errorf("stop iteration")
 
 	lbls := []string{}
-	err = n.GetLabels(func(lbl string) error {
-		lbls = append(lbls, lbl)
+	err = n.GetLabels(func(lbl string, n int) error {
+		lbls = append(lbls, lbl[:n])
 		if len(lbls) >= 2 {
 			return stop
 		}

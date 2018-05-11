@@ -6,6 +6,11 @@ import (
 	"testing"
 )
 
+type testLabelPair struct {
+	s string
+	n int
+}
+
 var (
 	strs = []string{
 		"wjgsapgatlmody.umguqdiw.mnppqimge",
@@ -1035,14 +1040,16 @@ var (
 	}
 
 	names  []Name
-	labels [][]string
+	labels [][]testLabelPair
 
 	errStop = errors.New("stop iteration")
 )
 
 func init() {
 	names = make([]Name, len(strs))
-	labels = make([][]string, len(strs))
+	labels = make([][]testLabelPair, len(strs))
+
+	padding := "\x00\x00\x00\x00\x00\x00\x00"
 
 	for i, s := range strs {
 		n, err := MakeNameFromString(s)
@@ -1053,10 +1060,19 @@ func init() {
 		names[i] = n
 
 		seq := strings.Split(s, ".")
-		rev := make([]string, len(seq))
+		rev := make([]testLabelPair, len(seq))
 		last := len(rev) - 1
 		for i, s := range seq {
-			rev[last-i] = strings.ToUpper(s)
+			s := strings.ToUpper(s)
+			r := len(s) & 7
+			if r != 0 {
+				r = 8 - r
+			}
+
+			rev[last-i] = testLabelPair{
+				s: s + padding[:r],
+				n: len(s),
+			}
 		}
 
 		labels[i] = rev
@@ -1070,9 +1086,9 @@ func BenchmarkDomainComparison(b *testing.B) {
 		seq := labels[i]
 
 		j := 0
-		if err := name.GetLabels(func(s string) error {
+		if err := name.GetLabels(func(s string, n int) error {
 			sl := seq[j]
-			if len(s) == len(sl) && s == sl {
+			if n == sl.n && s == sl.s {
 				j++
 				return nil
 			}
@@ -1096,9 +1112,9 @@ func BenchmarkDomainComparisonWithConversion(b *testing.B) {
 		}
 
 		j := 0
-		if err := name.GetLabels(func(s string) error {
+		if err := name.GetLabels(func(s string, n int) error {
 			sl := seq[j]
-			if len(s) == len(sl) && s == sl {
+			if n == sl.n && s == sl.s {
 				j++
 				return nil
 			}
@@ -1117,8 +1133,9 @@ func BenchmarkDomainComparisonWithStringsCompare(b *testing.B) {
 		seq := labels[i]
 
 		j := 0
-		if err := name.GetLabels(func(s string) error {
-			if strings.Compare(s, seq[j]) == 0 {
+		if err := name.GetLabels(func(s string, n int) error {
+			sl := seq[j]
+			if n == sl.n && strings.Compare(s, sl.s) == 0 {
 				j++
 				return nil
 			}
@@ -1142,8 +1159,9 @@ func BenchmarkDomainComparisonWithConversionAndStringsCompare(b *testing.B) {
 		}
 
 		j := 0
-		if err := name.GetLabels(func(s string) error {
-			if strings.Compare(s, seq[j]) == 0 {
+		if err := name.GetLabels(func(s string, n int) error {
+			sl := seq[j]
+			if n == sl.n && strings.Compare(s, sl.s) == 0 {
 				j++
 				return nil
 			}

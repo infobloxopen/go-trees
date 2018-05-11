@@ -594,23 +594,23 @@ func TestIsEmpty(t *testing.T) {
 func TestRawMethods(t *testing.T) {
 	var r *Tree
 
-	r = r.RawInsert("K", "v")
+	r = r.RawInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, "v")
 	assertTree(r, TestSingleNodeTree, "single node tree", t)
 
 	r = NewTree()
-	r = r.RawInsert("K", "v")
+	r = r.RawInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, "v")
 	assertTree(r, TestSingleNodeTree, "single node tree", t)
 
 	r = NewTree()
-	r.RawInplaceInsert("K", "v")
+	r.RawInplaceInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, "v")
 	assertTree(r, TestSingleNodeTree, "single node inplace tree", t)
 
 	r = NewTree()
-	r.RawInplaceInsert("K", "v")
+	r.RawInplaceInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, "v")
 	assertTree(r, TestSingleNodeTree, "single node inplace tree", t)
 
 	r = nil
-	v, ok := r.RawGet("0")
+	v, ok := r.RawGet("0\x00\x00\x00\x00\x00\x00\x00", 1)
 	if ok {
 		t.Errorf("Expected nothing but got %T (%#v)", v, v)
 	}
@@ -622,7 +622,7 @@ func TestRawMethods(t *testing.T) {
 	r = r.Insert("2", "test-2")
 	r = r.Insert("3", "test-3")
 
-	v, ok = r.RawGet("3")
+	v, ok = r.RawGet("3\x00\x00\x00\x00\x00\x00\x00", 1)
 	if !ok {
 		t.Errorf("Expected \"test-3\" but got nothing")
 	} else {
@@ -644,12 +644,12 @@ func TestRawMethods(t *testing.T) {
 		"\"3\": \"test-3\"\n",
 		"\"4\": \"test-4\"\n")
 
-	e, ok = e.RawDelete("0")
+	e, ok = e.RawDelete("0\x00\x00\x00\x00\x00\x00\x00", 1)
 	if ok {
 		t.Errorf("Expected nothing to be deleted from empty tree but something has been deleted:\n%s", e.Dot())
 	}
 
-	_, ok = r.RawDelete("0")
+	_, ok = r.RawDelete("0\x00\x00\x00\x00\x00\x00\x00", 1)
 	if !ok {
 		t.Errorf("Expected node \"0\" to be deleted but got nothing")
 	}
@@ -831,54 +831,54 @@ N16 [label="F" style=filled fillcolor=red]
 `
 
 	Test32AlternatingNodeTree = `digraph d {
-N0 [label="0E" style=filled fontcolor=white fillcolor=black]
+N0 [label="06" style=filled fontcolor=white fillcolor=black]
 N0 -> { N1 N2 }
-N1 [label="06" style=filled fontcolor=white fillcolor=black]
+N1 [label="02" style=filled fontcolor=white fillcolor=black]
 N1 -> { N3 N4 }
-N2 [label="16" style=filled fontcolor=white fillcolor=black]
+N2 [label="0A" style=filled fontcolor=white fillcolor=black]
 N2 -> { N5 N6 }
-N3 [label="02" style=filled fontcolor=white fillcolor=black]
+N3 [label="10" style=filled fontcolor=white fillcolor=black]
 N3 -> { N7 N8 }
-N4 [label="0A" style=filled fontcolor=white fillcolor=black]
+N4 [label="04" style=filled fontcolor=white fillcolor=black]
 N4 -> { N9 N10 }
-N5 [label="12" style=filled fontcolor=white fillcolor=black]
+N5 [label="08" style=filled fontcolor=white fillcolor=black]
 N5 -> { N11 N12 }
-N6 [label="1A" style=filled fontcolor=white fillcolor=black]
+N6 [label="0C" style=filled fontcolor=white fillcolor=black]
 N6 -> { N13 N14 }
 N7 [label="00" style=filled fontcolor=white fillcolor=black]
-N7 -> { N15 N16 }
-N8 [label="04" style=filled fontcolor=white fillcolor=black]
-N8 -> { N17 N18 }
-N9 [label="08" style=filled fontcolor=white fillcolor=black]
-N9 -> { N19 N20 }
-N10 [label="0C" style=filled fontcolor=white fillcolor=black]
-N10 -> { N21 N22 }
-N11 [label="10" style=filled fontcolor=white fillcolor=black]
-N11 -> { N23 N24 }
-N12 [label="14" style=filled fontcolor=white fillcolor=black]
-N12 -> { N25 N26 }
-N13 [label="18" style=filled fontcolor=white fillcolor=black]
-N13 -> { N27 N28 }
-N14 [label="1C" style=filled fillcolor=red]
-N14 -> { N29 N30 }
+N8 [label="01" style=filled fontcolor=white fillcolor=black]
+N8 -> { N15 N16 }
+N9 [label="03" style=filled fontcolor=white fillcolor=black]
+N9 -> { N17 N18 }
+N10 [label="05" style=filled fontcolor=white fillcolor=black]
+N10 -> { N19 N20 }
+N11 [label="07" style=filled fontcolor=white fillcolor=black]
+N11 -> { N21 N22 }
+N12 [label="09" style=filled fontcolor=white fillcolor=black]
+N12 -> { N23 N24 }
+N13 [label="0B" style=filled fontcolor=white fillcolor=black]
+N13 -> { N25 N26 }
+N14 [label="0E" style=filled fillcolor=red]
+N14 -> { N27 N28 }
 N15 [label="nil" style=filled fontcolor=white fillcolor=black]
-N16 [label="01" style=filled fillcolor=red]
-N17 [label="03" style=filled fillcolor=red]
-N18 [label="05" style=filled fillcolor=red]
-N19 [label="07" style=filled fillcolor=red]
-N20 [label="09" style=filled fillcolor=red]
-N21 [label="0B" style=filled fillcolor=red]
-N22 [label="0D" style=filled fillcolor=red]
-N23 [label="0F" style=filled fillcolor=red]
-N24 [label="11" style=filled fillcolor=red]
-N25 [label="13" style=filled fillcolor=red]
-N26 [label="15" style=filled fillcolor=red]
-N27 [label="17" style=filled fillcolor=red]
-N28 [label="19" style=filled fillcolor=red]
-N29 [label="1B" style=filled fontcolor=white fillcolor=black]
-N30 [label="1E" style=filled fontcolor=white fillcolor=black]
-N30 -> { N31 N32 }
-N31 [label="1D" style=filled fillcolor=red]
+N16 [label="11" style=filled fillcolor=red]
+N17 [label="12" style=filled fillcolor=red]
+N18 [label="13" style=filled fillcolor=red]
+N19 [label="14" style=filled fillcolor=red]
+N20 [label="15" style=filled fillcolor=red]
+N21 [label="16" style=filled fillcolor=red]
+N22 [label="17" style=filled fillcolor=red]
+N23 [label="18" style=filled fillcolor=red]
+N24 [label="19" style=filled fillcolor=red]
+N25 [label="1A" style=filled fillcolor=red]
+N26 [label="1B" style=filled fillcolor=red]
+N27 [label="0D" style=filled fontcolor=white fillcolor=black]
+N27 -> { N29 N30 }
+N28 [label="0F" style=filled fontcolor=white fillcolor=black]
+N28 -> { N31 N32 }
+N29 [label="1C" style=filled fillcolor=red]
+N30 [label="1D" style=filled fillcolor=red]
+N31 [label="1E" style=filled fillcolor=red]
 N32 [label="1F" style=filled fillcolor=red]
 }
 `
@@ -993,14 +993,14 @@ func assertEnumerate(ch chan Pair, desc string, t *testing.T, e ...string) {
 	assertStringLists(pairs, e, desc, t)
 }
 
-func assertRawEnumerate(ch chan Pair, desc string, t *testing.T, e ...string) {
+func assertRawEnumerate(ch chan RawPair, desc string, t *testing.T, e ...string) {
 	pairs := []string{}
 	for p := range ch {
 		s, ok := p.Value.(string)
 		if ok {
-			pairs = append(pairs, fmt.Sprintf("%q: %q\n", p.Key, s))
+			pairs = append(pairs, fmt.Sprintf("%q: %q\n", p.Key[:p.Size], s))
 		} else {
-			pairs = append(pairs, fmt.Sprintf("%q: %T (%#v)\n", p.Key, p.Value, p.Value))
+			pairs = append(pairs, fmt.Sprintf("%q: %T (%#v)\n", p.Key[:p.Size], p.Value, p.Value))
 		}
 	}
 

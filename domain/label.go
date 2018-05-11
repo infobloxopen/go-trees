@@ -12,24 +12,35 @@ const (
 	escThirdDigit
 )
 
+type Label struct {
+	s string
+	n int
+}
+
 // MakeLabel makes uppercase domain label from given human-readable representation. Ignores ending dot.
-func MakeLabel(s string) (string, error) {
+func MakeLabel(s string) (string, int, error) {
 	var label [MaxLabel + 1]byte
 
 	n, err := getLabel(s, label[:])
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	return string(label[1:n]), nil
+	size := n - 1
+	r := size & 7
+	if r != 0 {
+		r = 8 - r
+	}
+
+	return string(label[1:n+r]), size, nil
 }
 
 // MakeHumanReadableLabel makes human-readable label by escaping according RFC-4343.
-func MakeHumanReadableLabel(s string) string {
+func MakeHumanReadableLabel(s string, n int) string {
 	var label [4 * MaxLabel]byte
 
 	j := 0
-	for i := 0; i < len(s); i++ {
+	for i := 0; i < n; i++ {
 		c := s[i]
 		if c == '.' || c == '\\' {
 			if j >= len(label)-1 {

@@ -55,12 +55,14 @@ func MakeNameFromString(s string) (Name, error) {
 	}
 
 	var (
-		label [MaxLabel + 1]byte
-		name  [MaxName]byte
+		label   [MaxLabel + 1]byte
+		name    [9 * MaxLabels]byte
+		padding [7]byte
 	)
 
 	j := 0
 	end := len(s)
+	dataLen := 0
 	for i := n - 1; i >= 0; i-- {
 		start := offs[i]
 
@@ -69,11 +71,20 @@ func MakeNameFromString(s string) (Name, error) {
 			return out, err
 		}
 
-		if copied := copy(name[j:], label[:n]); copied < n {
+		dataLen += n
+		if dataLen > MaxName {
 			return out, ErrNameTooLong
 		}
 
+		copy(name[j:], label[:n])
 		j += n
+
+		r := (n - 1) & 7
+		if r != 0 {
+			r = 8 - r
+			copy(name[j:], padding[:r])
+			j += r
+		}
 
 		end = start
 	}
@@ -118,41 +129,52 @@ func (n Name) String() string {
 }
 
 // GetLabel returns label starting from given offset and offset of the next label. The method returns zero offset for the last label and -1 in case of error.
-func (n Name) GetLabel(off int) (string, int) {
+func (n Name) GetLabel(off int) (string, int, int) {
 	if off == 0 && len(n.c) == 0 {
-		return "", 0
+		return "", 0, 0
 	}
 
 	if off < 0 || off >= len(n.c) {
-		return "", -1
+		return "", 0, -1
 	}
 
 	size := int(n.c[off])
 	if size < 1 || size > 63 {
-		return "", -1
+		return "", 0, -1
 	}
 
 	start := off + 1
-	end := start + size
-	if end >= len(n.c) {
-		return n.c[start:], 0
+	r := size & 7
+	if r != 0 {
+		r = 8 - r
+	}
+	next := start + size + r
+
+	if next >= len(n.c) {
+		return n.c[start:], size, 0
 	}
 
-	return n.c[start:end], end
+
+	return n.c[start:next], size, next
 }
 
 // GetLabels iterate through name labels in reversed order.
-func (n Name) GetLabels(f func(string) error) error {
+func (n Name) GetLabels(f func(string, int) error) error {
 	off := 0
 	for off < len(n.c) {
+		size := int(n.c[off])
+		r := size & 7
+		if r != 0 {
+			r = 8 - r
+		}
 		off++
-		next := off + int(n.c[off-1])
+		end := off + size + r
 
-		if err := f(n.c[off:next]); err != nil {
+		if err := f(n.c[off:end], size); err != nil {
 			return err
 		}
 
-		off = next
+		off = end
 	}
 
 	return nil

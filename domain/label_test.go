@@ -7,22 +7,23 @@ import (
 
 func TestLabelMakeLabel(t *testing.T) {
 	s := "la\\098el."
-	e := "LABEL"
-	lbl, err := MakeLabel(s)
+	e := "LABEL\x00\x00\x00"
+	nE := 5
+	lbl, n, err := MakeLabel(s)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if lbl != e {
-		t.Fatalf("expected %q as label for %q but got %q", e, s, lbl)
+	if lbl != e || n != nE {
+		t.Fatalf("expected %q (%d)  as label for %q but got %q (%d)", e, nE, s, lbl, n)
 	}
 }
 
 func TestLabelMakeLabelWithInvalidInput(t *testing.T) {
 	s := "la\\999el."
-	lbl, err := MakeLabel(s)
+	lbl, n, err := MakeLabel(s)
 	if err == nil {
-		t.Fatalf("expected error for %q but got label %q", s, lbl)
+		t.Fatalf("expected error for %q but got label %q (%d)", s, lbl, n)
 	}
 
 	if err != ErrInvalidEscape {
@@ -32,8 +33,8 @@ func TestLabelMakeLabelWithInvalidInput(t *testing.T) {
 
 func TestLabelMakeHumanReadableLabel(t *testing.T) {
 	e := "label\\032\\."
-	lbl := "LABEL ."
-	s := MakeHumanReadableLabel(lbl)
+	lbl := "LABEL .\x00"
+	s := MakeHumanReadableLabel(lbl, 7)
 	if s != e {
 		t.Fatalf("expected %q as human-readable label for %q but got %q", e, lbl, s)
 	}
@@ -47,8 +48,8 @@ func TestLabelMakeHumanReadableLabelWithTooLongLabels(t *testing.T) {
 	lbl := "01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
 		"01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
 		"01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-		"0123456789012"
-	s := MakeHumanReadableLabel(lbl)
+		"0123456789012\x00\x00\x00"
+	s := MakeHumanReadableLabel(lbl, 253)
 	if s != e {
 		t.Errorf("expected:\n\t%q\nas human-readable label for\n\t%q\nbut got\n\t%q", e, lbl, s)
 	}
@@ -60,8 +61,8 @@ func TestLabelMakeHumanReadableLabelWithTooLongLabels(t *testing.T) {
 	lbl = "01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
 		"01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
 		"01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-		"01234567890."
-	s = MakeHumanReadableLabel(lbl)
+		"01234567890.\x00\x00\x00\x00"
+	s = MakeHumanReadableLabel(lbl, 252)
 	if s != e {
 		t.Errorf("expected:\n\t%q\nas human-readable label for\n\t%q\nbut got\n\t%q", e, lbl, s)
 	}
@@ -73,8 +74,8 @@ func TestLabelMakeHumanReadableLabelWithTooLongLabels(t *testing.T) {
 	lbl = "01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
 		"01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
 		"01234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-		"012345678 0"
-	s = MakeHumanReadableLabel(lbl)
+		"012345678 0\x00\x00\x00\x00\x00"
+	s = MakeHumanReadableLabel(lbl, 251)
 	if s != e {
 		t.Errorf("expected:\n\t%q\nas human-readable label for\n\t%q\nbut got\n\t%q", e, lbl, s)
 	}

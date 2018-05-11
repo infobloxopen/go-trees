@@ -6,6 +6,11 @@ import (
 	"github.com/infobloxopen/go-trees/domain"
 )
 
+type testLabelPair struct {
+	s string
+	n int
+}
+
 var (
 	strs = []string{
 		"mwjgsapga",
@@ -1034,18 +1039,21 @@ var (
 		"enhtjlpn",
 	}
 
-	labels []string
+	labels []testLabelPair
 	tree   *Tree
 )
 
 func init() {
-	labels = make([]string, len(strs))
+	labels = make([]testLabelPair, len(strs))
 	tree = NewTree()
 	for i, s := range strs {
-		lbl, _ := domain.MakeLabel(s)
-		labels[i] = lbl
+		lbl, n, _ := domain.MakeLabel(s)
+		labels[i] = testLabelPair{
+			s: lbl,
+			n: n,
+		}
 
-		tree.RawInplaceInsert(lbl, "test")
+		tree.RawInplaceInsert(lbl, n, "test")
 	}
 }
 
@@ -1070,7 +1078,7 @@ func BenchmarkDomainLabelTreeRawGet(b *testing.B) {
 		i := n & 1023
 		lbl := labels[i]
 
-		v, ok := tree.RawGet(lbl)
+		v, ok := tree.RawGet(lbl.s, lbl.n)
 		if !ok {
 			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], lbl, n, i)
 		}
