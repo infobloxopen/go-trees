@@ -586,8 +586,8 @@ func TestLabelIsEmpty(t *testing.T) {
 		t.Errorf("Expected two nodes tree to be not empty")
 	}
 
-	r, ok = r.del("0")
-	r, ok = r.del("6")
+	r, _ = r.del("0")
+	r, _ = r.del("6")
 
 	if !r.isEmpty() {
 		t.Errorf("Expected empty non-nil tree to be empty")
