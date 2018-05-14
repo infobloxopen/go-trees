@@ -171,8 +171,8 @@ func TestDeleteSubdomains(t *testing.T) {
 	}
 
 	assertTree(r, "tree with no \"com\"", t,
-		"\"test.net\": \"3\"\n",
-		"\"www.test.org\": \"6\"\n")
+		"\"www.test.org\": \"6\"\n",
+		"\"test.net\": \"3\"\n")
 
 	r, ok = r.DeleteSubdomains(makeTestDN(t, "test.net"))
 	if !ok {
@@ -238,9 +238,9 @@ func TestDelete(t *testing.T) {
 	}
 
 	assertTree(r, "tree", t,
+		"\"www.test.org\": \"6\"\n",
 		"\"example.com\": \"4\"\n",
-		"\"test.net\": \"3\"\n",
-		"\"www.test.org\": \"6\"\n")
+		"\"test.net\": \"3\"\n")
 
 	r, ok = r.Delete(makeTestDN(t, "test.net"))
 	if !ok {
@@ -255,16 +255,16 @@ func TestDelete(t *testing.T) {
 	r = r.Insert(makeTestDN(t, ""), "root")
 	assertTree(r, "tree", t,
 		"\"\": \"root\"\n",
-		"\"example.com\": \"4\"\n",
-		"\"www.test.org\": \"6\"\n")
+		"\"www.test.org\": \"6\"\n",
+		"\"example.com\": \"4\"\n")
 
 	r, ok = r.Delete(makeTestDN(t, ""))
 	if !ok {
 		t.Error("Expected root node to be deleted")
 	}
 	assertTree(r, "tree", t,
-		"\"example.com\": \"4\"\n",
-		"\"www.test.org\": \"6\"\n")
+		"\"www.test.org\": \"6\"\n",
+		"\"example.com\": \"4\"\n")
 
 	r = r.Insert(makeTestDN(t, ""), "root")
 	r, ok = r.Delete(makeTestDN(t, "example.com"))

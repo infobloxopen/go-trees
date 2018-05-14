@@ -599,23 +599,23 @@ func TestLabelRawMethods(t *testing.T) {
 
 	n := new(Node)
 
-	r = r.rawInsert("K", n)
+	r = r.rawInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, n)
 	assertLabelTree(r, fmt.Sprintf(TestSingleNodeTree, n), "single node tree", t)
 
 	r = newLabelTree()
-	r = r.rawInsert("K", n)
+	r = r.rawInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, n)
 	assertLabelTree(r, fmt.Sprintf(TestSingleNodeTree, n), "single node tree", t)
 
 	r = newLabelTree()
-	r.rawInplaceInsert("K", n)
+	r.rawInplaceInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, n)
 	assertLabelTree(r, fmt.Sprintf(TestSingleNodeTree, n), "single node inplace tree", t)
 
 	r = newLabelTree()
-	r.rawInplaceInsert("K", n)
+	r.rawInplaceInsert("K\x00\x00\x00\x00\x00\x00\x00", 1, n)
 	assertLabelTree(r, fmt.Sprintf(TestSingleNodeTree, n), "single node inplace tree", t)
 
 	r = nil
-	v, ok := r.rawGet("0")
+	v, ok := r.rawGet("0\x00\x00\x00\x00\x00\x00\x00", 1)
 	if ok {
 		t.Errorf("Expected nothing but got %T (%#v)", v, v)
 	}
@@ -633,7 +633,7 @@ func TestLabelRawMethods(t *testing.T) {
 	r = r.insert("2", n2)
 	r = r.insert("3", n3)
 
-	v, ok = r.rawGet("3")
+	v, ok = r.rawGet("3\x00\x00\x00\x00\x00\x00\x00", 1)
 	if !ok {
 		t.Errorf("Expected %p but got nothing", n3)
 	} else if v != n3 {
@@ -641,9 +641,9 @@ func TestLabelRawMethods(t *testing.T) {
 	}
 
 	var e *labelTree
-	assertEnumerate(e.rawEnumerate(), "empty tree", t)
+	assertRawEnumerate(e.rawEnumerate(), "empty tree", t)
 
-	assertEnumerate(r.rawEnumerate(), "raw enumeration of tree 10423", t,
+	assertRawEnumerate(r.rawEnumerate(), "raw enumeration of tree 10423", t,
 		fmt.Sprintf("\"0\": \"%p\"\n", n0),
 		fmt.Sprintf("\"1\": \"%p\"\n", n1),
 		fmt.Sprintf("\"2\": \"%p\"\n", n2),
@@ -651,12 +651,12 @@ func TestLabelRawMethods(t *testing.T) {
 		fmt.Sprintf("\"4\": \"%p\"\n", n4),
 	)
 
-	e, ok = e.rawDel("0")
+	e, ok = e.rawDel("0\x00\x00\x00\x00\x00\x00\x00", 1)
 	if ok {
 		t.Errorf("Expected nothing to be deleted from empty tree but something has been deleted:\n%s", e.dot())
 	}
 
-	_, ok = r.rawDel("0")
+	_, ok = r.rawDel("0\x00\x00\x00\x00\x00\x00\x00", 1)
 	if !ok {
 		t.Errorf("Expected node \"0\" to be deleted but got nothing")
 	}
@@ -980,6 +980,15 @@ func assertEnumerate(ch chan labelPair, desc string, t *testing.T, e ...string) 
 	pairs := []string{}
 	for p := range ch {
 		pairs = append(pairs, fmt.Sprintf("%q: \"%p\"\n", p.Key, p.Value))
+	}
+
+	assertStringLists(pairs, e, desc, t)
+}
+
+func assertRawEnumerate(ch chan labelRawPair, desc string, t *testing.T, e ...string) {
+	pairs := []string{}
+	for p := range ch {
+		pairs = append(pairs, fmt.Sprintf("%q: \"%p\"\n", p.Key[:p.Size], p.Value))
 	}
 
 	assertStringLists(pairs, e, desc, t)

@@ -13,6 +13,12 @@ type labelPair struct {
 	Value *Node
 }
 
+type labelRawPair struct {
+	Key   string
+	Size  int
+	Value *Node
+}
+
 func newLabelTree() *labelTree {
 	return new(labelTree)
 }
@@ -26,11 +32,11 @@ func (t *labelTree) insert(key string, value *Node) *labelTree {
 		n = t.root
 	}
 
-	dl, _ := domain.MakeLabel(key)
-	return &labelTree{root: n.insert(dl, value)}
+	dl, size, _ := domain.MakeLabel(key)
+	return &labelTree{root: n.insert(dl, size, value)}
 }
 
-func (t *labelTree) rawInsert(key string, value *Node) *labelTree {
+func (t *labelTree) rawInsert(key string, size int, value *Node) *labelTree {
 	var (
 		n *node
 	)
@@ -39,16 +45,16 @@ func (t *labelTree) rawInsert(key string, value *Node) *labelTree {
 		n = t.root
 	}
 
-	return &labelTree{root: n.insert(key, value)}
+	return &labelTree{root: n.insert(key, size, value)}
 }
 
 func (t *labelTree) inplaceInsert(key string, value *Node) {
-	dl, _ := domain.MakeLabel(key)
-	t.root = t.root.inplaceInsert(dl, value)
+	dl, size, _ := domain.MakeLabel(key)
+	t.root = t.root.inplaceInsert(dl, size, value)
 }
 
-func (t *labelTree) rawInplaceInsert(key string, value *Node) {
-	t.root = t.root.inplaceInsert(key, value)
+func (t *labelTree) rawInplaceInsert(key string, size int, value *Node) {
+	t.root = t.root.inplaceInsert(key, size, value)
 }
 
 func (t *labelTree) get(key string) (*Node, bool) {
@@ -56,16 +62,16 @@ func (t *labelTree) get(key string) (*Node, bool) {
 		return nil, false
 	}
 
-	dl, _ := domain.MakeLabel(key)
-	return t.root.get(dl)
+	dl, size, _ := domain.MakeLabel(key)
+	return t.root.get(dl, size)
 }
 
-func (t *labelTree) rawGet(key string) (*Node, bool) {
+func (t *labelTree) rawGet(key string, size int) (*Node, bool) {
 	if t == nil {
 		return nil, false
 	}
 
-	return t.root.get(key)
+	return t.root.get(key, size)
 }
 
 func (t *labelTree) enumerate() chan labelPair {
@@ -84,8 +90,8 @@ func (t *labelTree) enumerate() chan labelPair {
 	return ch
 }
 
-func (t *labelTree) rawEnumerate() chan labelPair {
-	ch := make(chan labelPair)
+func (t *labelTree) rawEnumerate() chan labelRawPair {
+	ch := make(chan labelRawPair)
 
 	go func() {
 		defer close(ch)
@@ -105,18 +111,24 @@ func (t *labelTree) del(key string) (*labelTree, bool) {
 		return nil, false
 	}
 
-	dl, _ := domain.MakeLabel(key)
-	root, ok := t.root.del(dl)
-	return &labelTree{root: root}, ok
+	dl, size, _ := domain.MakeLabel(key)
+	if root, ok := t.root.del(dl, size); ok {
+		return &labelTree{root: root}, true
+	}
+
+	return t, false
 }
 
-func (t *labelTree) rawDel(key string) (*labelTree, bool) {
+func (t *labelTree) rawDel(key string, size int) (*labelTree, bool) {
 	if t == nil {
 		return nil, false
 	}
 
-	root, ok := t.root.del(key)
-	return &labelTree{root: root}, ok
+	if root, ok := t.root.del(key, size); ok {
+		return &labelTree{root: root}, true
+	}
+
+	return t, false
 }
 
 func (t *labelTree) isEmpty() bool {
