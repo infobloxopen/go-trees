@@ -1036,11 +1036,13 @@ var (
 
 	names []domain.Name
 	tree  *Node
+	goMap map[string]interface{}
 )
 
 func init() {
 	names = make([]domain.Name, len(strs))
 	tree = new(Node)
+	goMap = make(map[string]interface{}, len(strs))
 
 	for i, s := range strs {
 		n, err := domain.MakeNameFromString(s)
@@ -1050,6 +1052,7 @@ func init() {
 
 		names[i] = n
 		tree.InplaceInsert(n, "test")
+		goMap[s] = "test"
 	}
 }
 
@@ -1085,6 +1088,22 @@ func BenchmarkDomainTreeGetWithConversion(b *testing.B) {
 
 		if _, ok := v.(string); !ok {
 			b.Fatalf("expected string for %q (%q) at %d (%d) but got %T (%#v)", strs[i], name, n, i, v, v)
+		}
+	}
+}
+
+func BenchmarkGoMapGet(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		i := n & 1023
+		s := strs[i]
+
+		v, ok := goMap[s]
+		if !ok {
+			b.Fatalf("can't find data for %q at %d (%d)", s, n, i)
+		}
+
+		if _, ok := v.(string); !ok {
+			b.Fatalf("expected string for %q at %d (%d) but got %T (%#v)", s, n, i, v, v)
 		}
 	}
 }
