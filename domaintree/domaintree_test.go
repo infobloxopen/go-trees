@@ -295,6 +295,16 @@ func TestDelete(t *testing.T) {
 	if !ok {
 		t.Error("Expected \"WwW.tEsT.cOm\" to be deleted")
 	}
+
+	r = nil
+	r = r.Insert(makeTestDN(t, "escaped.\\\\label.com"), "root")
+	assertTree(r, "tree", t,
+		"\"escaped.\\\\\\\\label.com\": \"root\"\n")
+
+	r, ok = r.Delete(makeTestDN(t, "escaped.\\\\label.com"))
+	if !ok {
+		t.Error("Expected \"escaped.\\\\\\\\label.com\" to be deleted")
+	}
 }
 
 func makeTestDN(t *testing.T, s string) domain.Name {
