@@ -214,7 +214,7 @@ func (n *Node) getBranch(d domain.Name, labels []string, nodes []*Node) int {
 	if err := d.GetLabels(func(label string) error {
 		labels[i] = label
 
-		next, ok := n.branches.Get(label)
+		next, ok := n.branches.RawGet(label)
 		if !ok {
 			return errStopIterations
 		}
