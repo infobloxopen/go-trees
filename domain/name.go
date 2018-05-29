@@ -84,21 +84,32 @@ func MakeNameFromString(s string) (Name, error) {
 }
 
 var (
-	reflectNameType = reflect.TypeOf(Name{})
+	reflectStringType = reflect.TypeOf("")
+	reflectNameType   = reflect.TypeOf(Name{})
 )
 
 // MakeNameFromReflection extracts domain name from value. The value should wrap Name or *Name otherwise MakeNameFromReflection panics.
 func MakeNameFromReflection(v reflect.Value) Name {
+	t := v.Type()
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 
-	t := v.Type()
-	if t != reflectNameType {
-		panic(fmt.Errorf("can't make %q from %q", reflectNameType, t))
+	switch v.Type() {
+	case reflectStringType:
+		s := v.String()
+		n, err := MakeNameFromString(s)
+		if err != nil {
+			panic(fmt.Errorf("can't make %q from %q (%s): %s", reflectNameType, t, s, err))
+		}
+
+		return n
+
+	case reflectNameType:
+		return Name{v.Field(0).String(), v.Field(1).String()}
 	}
 
-	return Name{v.Field(0).String(), v.Field(1).String()}
+	panic(fmt.Errorf("can't make %q from %q", reflectNameType, t))
 }
 
 // String method returns domain name in human-readable format.
