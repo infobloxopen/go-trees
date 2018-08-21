@@ -1,21 +1,28 @@
 package domain
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func BenchmarkNameLess(b *testing.B) {
-	n1, err := MakeNameFromString("fourth-level-label.third-level-label.second-level-label.first-level-label-A")
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	n2, err := MakeNameFromString("fourth-level-label.third-level-label.second-level-label.first-level-label-B")
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	for i := 0; i < b.N; i++ {
-		if !n1.Less(n2) {
-			b.Fatalf("expected %q to be less than %q but it is not", n1, n2)
+	for _, s := range []string{
+		"first-level-label",
+		"second-level-label.first-level-label",
+		"third-level-label.second-level-label.first-level-label",
+		"fourth-level-label.third-level-label.second-level-label.first-level-label",
+	} {
+		n, err := MakeNameFromString(s)
+		if err != nil {
+			b.Fatalf("got error for name %q: %s", s, err)
 		}
+
+		b.Run(fmt.Sprintf("%d-dwords", len(n.c)), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				if n.Less(n) {
+					b.Fatalf("expected %q to be not less than itself but it is", n)
+				}
+			}
+		})
 	}
 }
