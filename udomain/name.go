@@ -240,6 +240,25 @@ func (n Name) String() string {
 	return n.h
 }
 
+func (n Name) DropFirstLabel() Name {
+	if n.n > 1 && len(n.c) > 0 {
+		return Name{
+			n: n.n - 1,
+			c: n.c[n.c[0]&7:],
+		}
+	}
+
+	return Name{}
+}
+
+func (n Name) GetLabelCount() int {
+	return n.n
+}
+
+func (n Name) GetComparable() []uint64 {
+	return n.c
+}
+
 func (n Name) Less(other Name) bool {
 	if len(n.c) < len(other.c) {
 		return true
