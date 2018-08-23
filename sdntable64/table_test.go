@@ -125,6 +125,18 @@ func TestTable64InplaceInsert(t *testing.T) {
 		// E L P M A X E 1+0   V O G 1+4  v: 8
 		0x454c504d41584501, 0x564f4741, 0x8,
 	}, dnt.body[idx])
+
+	dnt.InplaceInsert(netDN, 16)
+	assert.Equal(t, []uint64{
+		// E L P M A X E 1+0   G R O 1+4  v: 1
+		0x454c504d41584501, 0x47524f41, 0x1,
+		// E L P M A X E 1+0   M O C 1+4  v: 2
+		0x454c504d41584501, 0x4d4f4341, 0x2,
+		// E L P M A X E 1+0   T E N 1+4  v: 14
+		0x454c504d41584501, 0x54454e41, 0x14,
+		// E L P M A X E 1+0   V O G 1+4  v: 8
+		0x454c504d41584501, 0x564f4741, 0x8,
+	}, dnt.body[idx])
 }
 
 func TestTable64Get(t *testing.T) {

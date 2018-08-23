@@ -35,24 +35,37 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 		right := end
 		for {
 			mid := (right + left) / 2
-			if k.Less(domain.MakeNameFromSlice(a[s*mid : s*(mid+1)-1])) {
+			mdn := domain.MakeNameFromSlice(a[s*mid : s*(mid+1)-1])
+			if k.Less(mdn) {
 				right = mid
 				if left == right {
+					a = append(append(a, c...), v)
+					if left < end {
+						copy(a[s*(left+1):], a[s*left:])
+						copy(a[s*left:], c)
+						a[s*left+len(c)] = v
+					}
+
 					break
 				}
 			} else if left == mid {
-				left = right
+				if mdn.Less(k) {
+					a = append(append(a, c...), v)
+					if right < end {
+						copy(a[s*(right+1):], a[s*right:])
+						copy(a[s*right:], c)
+						a[s*right+len(c)] = v
+					}
+
+					break
+				}
+
+				a[s*(mid+1)-1] |= v
+
 				break
 			} else {
 				left = mid
 			}
-		}
-
-		a = append(append(a, c...), v)
-		if left < end {
-			copy(a[s*(left+1):], a[s*left:])
-			copy(a[s*left:], c)
-			a[s*left+len(c)] = v
 		}
 	}
 
