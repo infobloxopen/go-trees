@@ -22,7 +22,7 @@ var (
 type Name struct {
 	h string
 	n int
-	c []uint64
+	c []int64
 }
 
 const (
@@ -52,8 +52,8 @@ func MakeNameFromString(s string) (Name, error) {
 	var (
 		fragment [uInt64Size]byte
 		zeros    [uInt64Size]byte
-		label    [(MaxLabel + 1) / uInt64Size]uint64
-		name     [MaxLabels]uint64
+		label    [(MaxLabel + 1) / uInt64Size]int64
+		name     [MaxLabels]int64
 	)
 
 	n := 0
@@ -85,7 +85,7 @@ func MakeNameFromString(s string) (Name, error) {
 						return out, ErrLabelTooLong
 					}
 
-					label[n] = binary.LittleEndian.Uint64(fragment[:])
+					label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
 					n++
 					j = 0
 				}
@@ -102,11 +102,11 @@ func MakeNameFromString(s string) (Name, error) {
 
 					copy(fragment[j:], zeros[:])
 
-					label[n] = binary.LittleEndian.Uint64(fragment[:])
+					label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
 					n++
 				}
 
-				label[0] |= uint64(n) | uint64(j<<4)
+				label[0] = int64(uint64(label[0]) | uint64(n) | uint64(j<<4))
 
 				j = 1
 				count++
@@ -143,7 +143,7 @@ func MakeNameFromString(s string) (Name, error) {
 						return out, ErrLabelTooLong
 					}
 
-					label[n] = binary.LittleEndian.Uint64(fragment[:])
+					label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
 					n++
 					j = 0
 				}
@@ -200,7 +200,7 @@ func MakeNameFromString(s string) (Name, error) {
 					return out, ErrLabelTooLong
 				}
 
-				label[n] = binary.LittleEndian.Uint64(fragment[:])
+				label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
 				n++
 				j = 0
 			}
@@ -218,10 +218,10 @@ func MakeNameFromString(s string) (Name, error) {
 
 		copy(fragment[j:], zeros[:])
 
-		label[n] = binary.LittleEndian.Uint64(fragment[:])
+		label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
 		n++
 
-		label[0] |= uint64(n) | uint64(j<<4)
+		label[0] = int64(uint64(label[0]) | uint64(n) | uint64(j<<4))
 
 		copy(name[k:], label[:n])
 		out.n++
@@ -232,7 +232,7 @@ func MakeNameFromString(s string) (Name, error) {
 	return out, nil
 }
 
-func MakeNameFromSlice(s []uint64) Name {
+func MakeNameFromSlice(s []int64) Name {
 	return Name{c: s}
 }
 
@@ -251,11 +251,7 @@ func (n Name) DropFirstLabel() Name {
 	return Name{}
 }
 
-func (n Name) GetLabelCount() int {
-	return n.n
-}
-
-func (n Name) GetComparable() []uint64 {
+func (n Name) GetComparable() []int64 {
 	return n.c
 }
 
@@ -264,16 +260,9 @@ func (n Name) Less(other Name) bool {
 		return true
 	}
 
-	if len(n.c) == len(other.c) {
-		for i, a := range n.c {
-			b := other.c[i]
-			if a < b {
-				return true
-			}
-
-			if a > b {
-				break
-			}
+	for i, u := range n.c {
+		if r := u - other.c[i]; r != 0 {
+			return r < 0
 		}
 	}
 

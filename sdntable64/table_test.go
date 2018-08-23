@@ -63,80 +63,64 @@ func init() {
 	ioZone = n
 }
 
-func TestTable64GetDomainNameIndex(t *testing.T) {
-	assert.Equal(t,
-		getDomainNameIndex(domain.MaxLabels-orgDN.GetLabelCount()),
-		getDomainNameIndex(domain.MaxLabels-comDN.GetLabelCount()),
-	)
-
-	assert.Equal(t,
-		getDomainNameIndex(domain.MaxLabels-comDN.GetLabelCount()),
-		getDomainNameIndex(domain.MaxLabels-netDN.GetLabelCount()),
-	)
-
-	assert.Equal(t,
-		getDomainNameIndex(domain.MaxLabels-netDN.GetLabelCount()),
-		getDomainNameIndex(domain.MaxLabels-govDN.GetLabelCount()),
-	)
-
-	assert.Equal(t,
-		getDomainNameIndex(domain.MaxLabels-govDN.GetLabelCount()),
-		getDomainNameIndex(domain.MaxLabels-ioDN.GetLabelCount()),
-	)
-}
-
 func TestTable64InplaceInsert(t *testing.T) {
 	dnt := NewTable64()
-	cnt := orgDN.GetLabelCount()
-	idx := getDomainNameIndex(domain.MaxLabels-cnt) + len(orgDN.GetComparable()) - cnt
+	size := len(orgDN.GetComparable())
 
 	dnt.InplaceInsert(comDN, 2)
-	assert.Equal(t, []uint64{
-		// E L P M A X E 1+0   M O C 1+4  v: 2
-		0x454c504d41584501, 0x4d4f4341, 0x2,
-	}, dnt.body[idx])
+	assert.Equal(t, []uint32{0}, dnt.body[size].idx)
+	assert.Equal(t, []int64{
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+	}, dnt.body[size].keys)
+	assert.Equal(t, []uint64{2}, dnt.body[size].values)
 
 	dnt.InplaceInsert(govDN, 8)
-	assert.Equal(t, []uint64{
-		// E L P M A X E 1+0   M O C 1+4  v: 2
-		0x454c504d41584501, 0x4d4f4341, 0x2,
-		// E L P M A X E 1+0   V O G 1+4  v: 8
-		0x454c504d41584501, 0x564f4741, 0x8,
-	}, dnt.body[idx])
+	assert.Equal(t, []uint32{0, 1}, dnt.body[size].idx)
+	assert.Equal(t, []int64{
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+		// E L P M A X E 1+0   V O G 1+4
+		0x454c504d41584501, 0x564f4741,
+	}, dnt.body[size].keys)
+	assert.Equal(t, []uint64{2, 8}, dnt.body[size].values)
 
 	dnt.InplaceInsert(netDN, 4)
-	assert.Equal(t, []uint64{
-		// E L P M A X E 1+0   M O C 1+4  v: 2
-		0x454c504d41584501, 0x4d4f4341, 0x2,
-		// E L P M A X E 1+0   T E N 1+4  v: 4
-		0x454c504d41584501, 0x54454e41, 0x4,
-		// E L P M A X E 1+0   V O G 1+4  v: 8
-		0x454c504d41584501, 0x564f4741, 0x8,
-	}, dnt.body[idx])
+	assert.Equal(t, []uint32{0, 2, 1}, dnt.body[size].idx)
+	assert.Equal(t, []int64{
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+		// E L P M A X E 1+0   V O G 1+4
+		0x454c504d41584501, 0x564f4741,
+		// E L P M A X E 1+0   T E N 1+4
+		0x454c504d41584501, 0x54454e41,
+	}, dnt.body[size].keys)
 
 	dnt.InplaceInsert(orgDN, 1)
-	assert.Equal(t, []uint64{
-		// E L P M A X E 1+0   G R O 1+4  v: 1
-		0x454c504d41584501, 0x47524f41, 0x1,
-		// E L P M A X E 1+0   M O C 1+4  v: 2
-		0x454c504d41584501, 0x4d4f4341, 0x2,
-		// E L P M A X E 1+0   T E N 1+4  v: 4
-		0x454c504d41584501, 0x54454e41, 0x4,
-		// E L P M A X E 1+0   V O G 1+4  v: 8
-		0x454c504d41584501, 0x564f4741, 0x8,
-	}, dnt.body[idx])
+	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[size].idx)
+	assert.Equal(t, []int64{
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+		// E L P M A X E 1+0   V O G 1+4
+		0x454c504d41584501, 0x564f4741,
+		// E L P M A X E 1+0   T E N 1+4
+		0x454c504d41584501, 0x54454e41,
+		// E L P M A X E 1+0   G R O 1+4
+		0x454c504d41584501, 0x47524f41,
+	}, dnt.body[size].keys)
 
 	dnt.InplaceInsert(netDN, 16)
-	assert.Equal(t, []uint64{
-		// E L P M A X E 1+0   G R O 1+4  v: 1
-		0x454c504d41584501, 0x47524f41, 0x1,
-		// E L P M A X E 1+0   M O C 1+4  v: 2
-		0x454c504d41584501, 0x4d4f4341, 0x2,
-		// E L P M A X E 1+0   T E N 1+4  v: 14
-		0x454c504d41584501, 0x54454e41, 0x14,
-		// E L P M A X E 1+0   V O G 1+4  v: 8
-		0x454c504d41584501, 0x564f4741, 0x8,
-	}, dnt.body[idx])
+	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[size].idx)
+	assert.Equal(t, []int64{
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+		// E L P M A X E 1+0   V O G 1+4
+		0x454c504d41584501, 0x564f4741,
+		// E L P M A X E 1+0   T E N 1+4
+		0x454c504d41584501, 0x54454e41,
+		// E L P M A X E 1+0   G R O 1+4
+		0x454c504d41584501, 0x47524f41,
+	}, dnt.body[size].keys)
 }
 
 func TestTable64Get(t *testing.T) {
@@ -147,10 +131,6 @@ func TestTable64Get(t *testing.T) {
 	dnt.InplaceInsert(netDN, 4)
 	dnt.InplaceInsert(orgDN, 1)
 	dnt.InplaceInsert(ioZone, 16)
-
-	n, err := domain.MakeNameFromString("wjgsapgatlmody.umguqdiw.mnppqimge")
-	assert.NoError(t, err)
-	dnt.InplaceInsert(n, 32)
 
 	if v, ok := dnt.Get(orgDN); assert.True(t, ok) {
 		assert.EqualValues(t, 1, v)
@@ -170,10 +150,6 @@ func TestTable64Get(t *testing.T) {
 
 	if v, ok := dnt.Get(ioDN); assert.True(t, ok) {
 		assert.EqualValues(t, 16, v)
-	}
-
-	if v, ok := dnt.Get(n); assert.True(t, ok) {
-		assert.EqualValues(t, 32, v)
 	}
 
 	_, ok := dnt.Get(rootDN)

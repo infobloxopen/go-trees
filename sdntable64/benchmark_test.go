@@ -1,8 +1,6 @@
 package sdntable64
 
 import (
-	"log"
-	"runtime"
 	"testing"
 
 	"github.com/infobloxopen/go-trees/udomain"
@@ -1041,15 +1039,6 @@ var (
 )
 
 func init() {
-	m := new(runtime.MemStats)
-	runtime.ReadMemStats(m)
-	log.Printf("Initial allocs: %d", m.Alloc)
-
-	table = NewTable64()
-
-	runtime.ReadMemStats(m)
-	log.Printf("Allocs after table: %d", m.Alloc)
-
 	names = make([]domain.Name, len(strs))
 	for i, s := range strs {
 		n, err := domain.MakeNameFromString(s)
@@ -1060,25 +1049,10 @@ func init() {
 		names[i] = n
 	}
 
-	runtime.GC()
-	runtime.ReadMemStats(m)
-	log.Printf("Allocs after names: %d", m.Alloc)
-
+	table = NewTable64()
 	for _, n := range names {
 		table.InplaceInsert(n, 1)
 	}
-
-	runtime.GC()
-	runtime.ReadMemStats(m)
-	log.Printf("Allocs with filled table: %d", m.Alloc)
-
-	n := 0
-	for _, a := range table.body {
-		if a != nil {
-			n++
-		}
-	}
-	log.Printf("Filled arrays: %d", n)
 }
 
 func BenchmarkTable64Get(b *testing.B) {

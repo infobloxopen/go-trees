@@ -11,7 +11,7 @@ func TestNameMakeNameFromString(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64{
+	assert.Equal(t, []int64{
 		// O O O O O O L (3 bytes in incomplete dword and 3 dwords for the label)
 		0x4f4f4f4f4f4f4c33,
 		// O O O O O O O O
@@ -30,7 +30,7 @@ func TestNameMakeNameFromStringFQDN(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64{
+	assert.Equal(t, []int64{
 		// O O O O O O L (3 bytes in incomplete dword and 3 dwords for the label)
 		0x4f4f4f4f4f4f4c33,
 		// O O O O O O O O
@@ -49,7 +49,7 @@ func TestNameMakeNameFromStringEmpty(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64(nil), n.c)
+	assert.Equal(t, []int64(nil), n.c)
 }
 
 func TestNameMakeNameFromStringDot(t *testing.T) {
@@ -57,7 +57,7 @@ func TestNameMakeNameFromStringDot(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64(nil), n.c)
+	assert.Equal(t, []int64(nil), n.c)
 }
 
 func TestNameMakeNameFromStringWithEscapedDot(t *testing.T) {
@@ -65,7 +65,7 @@ func TestNameMakeNameFromStringWithEscapedDot(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64{
+	assert.Equal(t, []int64{
 		// A X E . W W W (4 bytes in incomplete dword and 2 dwords for the label)
 		0x4158452e57575742,
 		//         E L P M
@@ -80,7 +80,7 @@ func TestNameMakeNameFromStringWithEscapedChar(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64{
+	assert.Equal(t, []int64{
 		//         W W W (4 bytes in incomplete dword and 1 dword for the label)
 		0x0000000057575741,
 		// E L P M A X E (0 bytes in incomplete dword and 1 dword for the label)
@@ -95,7 +95,7 @@ func TestNameMakeNameFromStringWithEscapedCode(t *testing.T) {
 	n, err := MakeNameFromString(s)
 	assert.NoError(t, err)
 	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
-	assert.Equal(t, []uint64{
+	assert.Equal(t, []int64{
 		//         W W W (4 bytes in incomplete dword and 1 dword for the label)
 		0x0000000057575741,
 		// E L P M A X E (0 bytes in incomplete dword and 1 dword for the label)
