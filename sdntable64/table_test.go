@@ -65,28 +65,29 @@ func init() {
 
 func TestTable64InplaceInsert(t *testing.T) {
 	dnt := NewTable64()
-	size := len(orgDN.GetComparable())
+	i := len(orgDN.GetComparable()) - 1
+	assert.True(t, i >= 0, "expected positive index for \"body\" array")
 
 	dnt.InplaceInsert(comDN, 2)
-	assert.Equal(t, []uint32{0}, dnt.body[size].idx)
+	assert.Equal(t, []uint32{0}, dnt.body[i].idx)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
 		0x454c504d41584501, 0x4d4f4341,
-	}, dnt.body[size].keys)
-	assert.Equal(t, []uint64{2}, dnt.body[size].values)
+	}, dnt.body[i].keys)
+	assert.Equal(t, []uint64{2}, dnt.body[i].values)
 
 	dnt.InplaceInsert(govDN, 8)
-	assert.Equal(t, []uint32{0, 1}, dnt.body[size].idx)
+	assert.Equal(t, []uint32{0, 1}, dnt.body[i].idx)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
 		0x454c504d41584501, 0x4d4f4341,
 		// E L P M A X E 1+0   V O G 1+4
 		0x454c504d41584501, 0x564f4741,
-	}, dnt.body[size].keys)
-	assert.Equal(t, []uint64{2, 8}, dnt.body[size].values)
+	}, dnt.body[i].keys)
+	assert.Equal(t, []uint64{2, 8}, dnt.body[i].values)
 
 	dnt.InplaceInsert(netDN, 4)
-	assert.Equal(t, []uint32{0, 2, 1}, dnt.body[size].idx)
+	assert.Equal(t, []uint32{0, 2, 1}, dnt.body[i].idx)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
 		0x454c504d41584501, 0x4d4f4341,
@@ -94,10 +95,10 @@ func TestTable64InplaceInsert(t *testing.T) {
 		0x454c504d41584501, 0x564f4741,
 		// E L P M A X E 1+0   T E N 1+4
 		0x454c504d41584501, 0x54454e41,
-	}, dnt.body[size].keys)
+	}, dnt.body[i].keys)
 
 	dnt.InplaceInsert(orgDN, 1)
-	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[size].idx)
+	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[i].idx)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
 		0x454c504d41584501, 0x4d4f4341,
@@ -107,10 +108,10 @@ func TestTable64InplaceInsert(t *testing.T) {
 		0x454c504d41584501, 0x54454e41,
 		// E L P M A X E 1+0   G R O 1+4
 		0x454c504d41584501, 0x47524f41,
-	}, dnt.body[size].keys)
+	}, dnt.body[i].keys)
 
 	dnt.InplaceInsert(netDN, 16)
-	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[size].idx)
+	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[i].idx)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
 		0x454c504d41584501, 0x4d4f4341,
@@ -120,7 +121,7 @@ func TestTable64InplaceInsert(t *testing.T) {
 		0x454c504d41584501, 0x54454e41,
 		// E L P M A X E 1+0   G R O 1+4
 		0x454c504d41584501, 0x47524f41,
-	}, dnt.body[size].keys)
+	}, dnt.body[i].keys)
 }
 
 func TestTable64Get(t *testing.T) {
@@ -154,4 +155,8 @@ func TestTable64Get(t *testing.T) {
 
 	_, ok := dnt.Get(rootDN)
 	assert.False(t, ok)
+}
+
+func TestTable64Size(t *testing.T) {
+	assert.EqualValues(t, 44224, table.Size())
 }
