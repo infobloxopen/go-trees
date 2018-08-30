@@ -2,67 +2,43 @@ package sdntable64
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/infobloxopen/go-trees/udomain"
 )
 
-type Option func(o *options)
-
-func WithPath(path string) Option {
-	return func(o *options) {
-		o.path = &path
-	}
-}
-
-func WithLimit(limit int) Option {
-	return func(o *options) {
-		o.limit = limit
-	}
-}
-
-func WithNormalizeLogger(f func(size, length int)) Option {
-	return func(o *options) {
-		o.log.normalize = f
-	}
-}
-
-func WithFlushLogger(f func(size, from, to int)) Option {
-	return func(o *options) {
-		o.log.flush = f
-	}
-}
-
-type loggers struct {
-	normalize func(size, length int)
-	flush     func(size, from, to int)
-}
-
-type options struct {
-	path  *string
-	limit int
-	log   loggers
-}
+const (
+	maxDomainLength = 127
+	megaByte        = 1024 * 1024
+)
 
 type Table64 struct {
-	opts options
-	root *uint64
-	body [127]domains
+	opts  options
+	root  uint64
+	ready bool
+	body  [maxDomainLength]domains
 }
 
 func NewTable64(opts ...Option) *Table64 {
-	t := new(Table64)
+	t := &Table64{
+		ready: true,
+	}
+
 	for _, opt := range opts {
 		opt(&t.opts)
 	}
 
 	if t.opts.path != nil {
+		path := *t.opts.path
 		for i := range t.body {
-			t.body[i] = makeDomainsWithPath(filepath.Join(*t.opts.path, fmt.Sprintf("%03d", i)))
+			t.body[i] = makeDomainsWithPath(path, i+1)
 		}
 
-		if t.opts.limit < 10*1024*1024 {
-			t.opts.limit = 100 * 1024 * 1024
+		if t.opts.limit < 10*megaByte {
+			t.opts.limit = 100 * megaByte
+		}
+	} else {
+		for i := range t.body {
+			t.body[i] = makeDomains()
 		}
 	}
 
@@ -71,60 +47,61 @@ func NewTable64(opts ...Option) *Table64 {
 
 func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 	c := k.GetComparable()
-	if len(c) < 1 {
-		if t.root != nil {
-			*t.root |= v
-			return
+	if len(c) > 0 {
+		if !t.ready {
+			panic(fmt.Errorf("table is not ready"))
 		}
 
-		t.root = &v
+		i := len(c) - 1
+		t.body[i] = t.body[i].inplaceInsert(c, v)
+		t.flush()
+
 		return
 	}
 
-	i := len(c) - 1
-	t.body[i] = t.body[i].inplaceInsert(c, v)
-	t.flush()
+	t.root = v
 }
 
-func (t *Table64) RawInsert(k domain.Name, v uint64) {
+func (t *Table64) Append(k domain.Name, v uint64) {
 	c := k.GetComparable()
-	if len(c) < 1 {
-		if t.root != nil {
-			*t.root |= v
-			return
-		}
+	if len(c) > 0 {
+		i := len(c) - 1
+		t.body[i] = t.body[i].append(c, v)
+		t.ready = false
 
-		t.root = &v
+		t.flush()
 		return
 	}
 
-	i := len(c) - 1
-	t.body[i] = t.body[i].rawInsert(c, v)
-	t.flush()
+	t.root = v
 }
 
 func (t *Table64) Normalize() {
 	for i, d := range t.body {
-		t.body[i] = d.normalize(t.opts.log.normalize)
+		if !d.ready {
+			t.body[i] = d.normalize(t.opts.log.normalize)
+		}
 	}
+
+	t.ready = true
 }
 
-func (t *Table64) Get(k domain.Name) (uint64, bool) {
+func (t *Table64) Get(k domain.Name) uint64 {
 	c := k.GetComparable()
+	if len(c) > 0 && !t.ready {
+		panic(fmt.Errorf("table is not ready"))
+	}
+
 	for len(c) > 0 {
-		if v, ok := t.body[len(c)-1].get(c); ok {
-			return v, ok
+		if v := t.body[len(c)-1].get(c, t.opts.log.read); v != 0 {
+			return v
 		}
 
 		k = k.DropFirstLabel()
 		c = k.GetComparable()
 	}
 
-	if t.root != nil {
-		return *t.root, true
-	}
-
-	return 0, false
+	return t.root
 }
 
 func (t *Table64) Size() int {
@@ -141,12 +118,12 @@ func (t *Table64) flush() {
 		return
 	}
 
-	for i := range t.collectBigLists() {
+	for i := range t.makeFlushingList() {
 		t.body[i] = t.body[i].flush(t.opts.log.flush, t.opts.log.normalize)
 	}
 }
 
-func (t *Table64) collectBigLists() map[int]struct{} {
+func (t *Table64) makeFlushingList() map[int]struct{} {
 	size := t.Size()
 	if size < t.opts.limit {
 		return nil

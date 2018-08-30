@@ -33,12 +33,8 @@ func BenchmarkTable64Get(b *testing.B) {
 		i := n & 1023
 		name := names[i]
 
-		if v, ok := table.Get(name); ok {
-			if v != 1 {
-				b.Fatalf("expected %d for %q (%q) at %d (%d) but got %d", 1, strs[i], name, n, i, v)
-			}
-		} else {
-			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], name, n, i)
+		if v := table.Get(name); v != 1 {
+			b.Fatalf("expected %d for %q (%q) at %d (%d) but got %d", 1, strs[i], name, n, i, v)
 		}
 
 	}
@@ -53,12 +49,8 @@ func BenchmarkTable64GetWithConversion(b *testing.B) {
 			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
 		}
 
-		if v, ok := table.Get(name); ok {
-			if v != 1 {
-				b.Fatalf("expected %d for %q (%q) at %d (%d) but got %d", 1, strs[i], name, n, i, v)
-			}
-		} else {
-			b.Fatalf("can't find data for %q (%q) at %d (%d)", strs[i], name, n, i)
+		if v := table.Get(name); v != 1 {
+			b.Fatalf("expected %d for %q (%q) at %d (%d) but got %d", 1, strs[i], name, n, i, v)
 		}
 	}
 }

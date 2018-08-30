@@ -9,154 +9,129 @@ import (
 	"github.com/infobloxopen/go-trees/udomain"
 )
 
-var (
-	rootDN domain.Name
-	orgDN  domain.Name
-	comDN  domain.Name
-	netDN  domain.Name
-	govDN  domain.Name
-	ioDN   domain.Name
-	ioZone domain.Name
-)
-
-func init() {
-	s := "example.org"
-	n, err := domain.MakeNameFromString(s)
-	if err != nil {
-		panic(fmt.Errorf("failed to make domain name from %q: %s", s, err))
-	}
-	orgDN = n
-
-	s = "example.com"
-	n, err = domain.MakeNameFromString(s)
-	if err != nil {
-		panic(fmt.Errorf("failed to make domain name from %q: %s", s, err))
-	}
-	comDN = n
-
-	s = "example.net"
-	n, err = domain.MakeNameFromString(s)
-	if err != nil {
-		panic(fmt.Errorf("failed to make domain name from %q: %s", s, err))
-	}
-	netDN = n
-
-	s = "example.gov"
-	n, err = domain.MakeNameFromString(s)
-	if err != nil {
-		panic(fmt.Errorf("failed to make domain name from %q: %s", s, err))
-	}
-	govDN = n
-
-	s = "example.io"
-	n, err = domain.MakeNameFromString(s)
-	if err != nil {
-		panic(fmt.Errorf("failed to make domain name from %q: %s", s, err))
-	}
-	ioDN = n
-
-	s = "io"
-	n, err = domain.MakeNameFromString(s)
-	if err != nil {
-		panic(fmt.Errorf("failed to make domain name from %q: %s", s, err))
-	}
-	ioZone = n
+func TestTable64NewTable64(t *testing.T) {
+	dnt := NewTable64()
+	assert.NotNil(t, dnt)
+	assert.True(t, dnt.ready)
 }
 
 func TestTable64InplaceInsert(t *testing.T) {
 	dnt := NewTable64()
-	i := len(orgDN.GetComparable()) - 1
-	assert.True(t, i >= 0, "expected positive index for \"body\" array")
+	dnt.InplaceInsert(makeDomainNameFromString("."), 1)
+	assert.Equal(t, uint64(1), dnt.root)
+	assert.True(t, dnt.ready)
 
-	dnt.InplaceInsert(comDN, 2)
-	assert.Equal(t, []uint32{0}, dnt.body[i].idx)
-	assert.Equal(t, []int64{
-		// E L P M A X E 1+0   M O C 1+4
-		0x454c504d41584501, 0x4d4f4341,
-	}, dnt.body[i].keys)
-	assert.Equal(t, []uint64{2}, dnt.body[i].values)
+	n := makeDomainNameFromString("example.com")
+	i := len(n.GetComparable()) - 1
 
-	dnt.InplaceInsert(govDN, 8)
-	assert.Equal(t, []uint32{0, 1}, dnt.body[i].idx)
-	assert.Equal(t, []int64{
-		// E L P M A X E 1+0   M O C 1+4
-		0x454c504d41584501, 0x4d4f4341,
-		// E L P M A X E 1+0   V O G 1+4
-		0x454c504d41584501, 0x564f4741,
-	}, dnt.body[i].keys)
-	assert.Equal(t, []uint64{2, 8}, dnt.body[i].values)
+	dnt.InplaceInsert(n, 2)
+	dnt.InplaceInsert(makeDomainNameFromString("example.gov"), 16)
+	dnt.InplaceInsert(makeDomainNameFromString("example.net"), 4)
+	dnt.InplaceInsert(makeDomainNameFromString("example.org"), 1)
+	dnt.InplaceInsert(makeDomainNameFromString("example.gov"), 8)
 
-	dnt.InplaceInsert(netDN, 4)
-	assert.Equal(t, []uint32{0, 2, 1}, dnt.body[i].idx)
+	assert.True(t, dnt.ready)
 	assert.Equal(t, []int64{
-		// E L P M A X E 1+0   M O C 1+4
-		0x454c504d41584501, 0x4d4f4341,
-		// E L P M A X E 1+0   V O G 1+4
-		0x454c504d41584501, 0x564f4741,
-		// E L P M A X E 1+0   T E N 1+4
-		0x454c504d41584501, 0x54454e41,
-	}, dnt.body[i].keys)
-
-	dnt.InplaceInsert(orgDN, 1)
-	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[i].idx)
-	assert.Equal(t, []int64{
-		// E L P M A X E 1+0   M O C 1+4
-		0x454c504d41584501, 0x4d4f4341,
-		// E L P M A X E 1+0   V O G 1+4
-		0x454c504d41584501, 0x564f4741,
-		// E L P M A X E 1+0   T E N 1+4
-		0x454c504d41584501, 0x54454e41,
 		// E L P M A X E 1+0   G R O 1+4
 		0x454c504d41584501, 0x47524f41,
-	}, dnt.body[i].keys)
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+		// E L P M A X E 1+0   T E N 1+4
+		0x454c504d41584501, 0x54454e41,
+		// E L P M A X E 1+0   V O G 1+4
+		0x454c504d41584501, 0x564f4741,
+	}, dnt.body[i].data.k)
+	assert.Equal(t, []uint64{1, 2, 4, 8}, dnt.body[i].data.v)
+}
 
-	dnt.InplaceInsert(netDN, 16)
-	assert.Equal(t, []uint32{3, 0, 2, 1}, dnt.body[i].idx)
+func TestTable64Append(t *testing.T) {
+	dnt := NewTable64()
+	dnt.Append(makeDomainNameFromString("."), 1)
+	assert.Equal(t, uint64(1), dnt.root)
+	assert.True(t, dnt.ready)
+
+	n := makeDomainNameFromString("example.com")
+	i := len(n.GetComparable()) - 1
+
+	dnt.Append(n, 2)
+	assert.False(t, dnt.ready)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
 		0x454c504d41584501, 0x4d4f4341,
-		// E L P M A X E 1+0   V O G 1+4
-		0x454c504d41584501, 0x564f4741,
+	}, dnt.body[i].data.k)
+	assert.Equal(t, []uint64{2}, dnt.body[i].data.v)
+
+	n = makeDomainNameFromString("example.net")
+	j := len(n.GetComparable()) - 1
+	assert.Equal(t, i, j)
+
+	dnt.Append(n, 4)
+	assert.False(t, dnt.ready)
+	assert.Equal(t, []int64{
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
 		// E L P M A X E 1+0   T E N 1+4
 		0x454c504d41584501, 0x54454e41,
+	}, dnt.body[i].data.k)
+	assert.Equal(t, []uint64{2, 4}, dnt.body[i].data.v)
+}
+
+func TestTable64Normalize(t *testing.T) {
+	dnt := NewTable64()
+
+	n := makeDomainNameFromString("example.com")
+	i := len(n.GetComparable()) - 1
+
+	dnt.Append(n, 2)
+	dnt.Append(makeDomainNameFromString("example.gov"), 16)
+	dnt.Append(makeDomainNameFromString("example.net"), 4)
+	dnt.Append(makeDomainNameFromString("example.org"), 1)
+	dnt.Append(makeDomainNameFromString("example.gov"), 8)
+	assert.False(t, dnt.ready)
+
+	dnt.Normalize()
+	assert.True(t, dnt.ready)
+	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   G R O 1+4
 		0x454c504d41584501, 0x47524f41,
-	}, dnt.body[i].keys)
+		// E L P M A X E 1+0   M O C 1+4
+		0x454c504d41584501, 0x4d4f4341,
+		// E L P M A X E 1+0   T E N 1+4
+		0x454c504d41584501, 0x54454e41,
+		// E L P M A X E 1+0   V O G 1+4
+		0x454c504d41584501, 0x564f4741,
+	}, dnt.body[i].data.k)
+	assert.Equal(t, []uint64{1, 2, 4, 8}, dnt.body[i].data.v)
 }
 
 func TestTable64Get(t *testing.T) {
 	dnt := NewTable64()
+	dnt.InplaceInsert(makeDomainNameFromString("."), 1)
+	assert.Equal(t, uint64(1), dnt.root)
 
-	dnt.InplaceInsert(comDN, 2)
-	dnt.InplaceInsert(govDN, 8)
-	dnt.InplaceInsert(netDN, 4)
-	dnt.InplaceInsert(orgDN, 1)
-	dnt.InplaceInsert(ioZone, 16)
+	assert.Equal(t, uint64(1), dnt.Get(makeDomainNameFromString(".")))
 
-	if v, ok := dnt.Get(orgDN); assert.True(t, ok) {
-		assert.EqualValues(t, 1, v)
-	}
+	dnt = NewTable64()
+	dnt.Append(makeDomainNameFromString("example.com"), 2)
+	dnt.Append(makeDomainNameFromString("example.gov"), 16)
+	dnt.Append(makeDomainNameFromString("example.net"), 4)
+	dnt.Append(makeDomainNameFromString("example.org"), 1)
+	dnt.Append(makeDomainNameFromString("example.gov"), 8)
+	dnt.Normalize()
 
-	if v, ok := dnt.Get(comDN); assert.True(t, ok) {
-		assert.EqualValues(t, 2, v)
-	}
-
-	if v, ok := dnt.Get(netDN); assert.True(t, ok) {
-		assert.EqualValues(t, 4, v)
-	}
-
-	if v, ok := dnt.Get(govDN); assert.True(t, ok) {
-		assert.EqualValues(t, 8, v)
-	}
-
-	if v, ok := dnt.Get(ioDN); assert.True(t, ok) {
-		assert.EqualValues(t, 16, v)
-	}
-
-	_, ok := dnt.Get(rootDN)
-	assert.False(t, ok)
+	assert.Equal(t, uint64(0), dnt.Get(makeDomainNameFromString("example.edu")))
+	assert.Equal(t, uint64(1), dnt.Get(makeDomainNameFromString("example.org")))
+	assert.Equal(t, uint64(2), dnt.Get(makeDomainNameFromString("example.com")))
+	assert.Equal(t, uint64(4), dnt.Get(makeDomainNameFromString("example.net")))
+	assert.Equal(t, uint64(8), dnt.Get(makeDomainNameFromString("example.gov")))
+	assert.Equal(t, uint64(8), dnt.Get(makeDomainNameFromString("www.example.gov")))
 }
 
-func TestTable64Size(t *testing.T) {
-	assert.EqualValues(t, 44224, table.Size())
+func makeDomainNameFromString(s string) domain.Name {
+	n, err := domain.MakeNameFromString(s)
+	if err != nil {
+		panic(fmt.Errorf("can't make domain name from string %q: %s", s, err))
+	}
+
+	return n
 }
