@@ -211,15 +211,17 @@ func MakeNameFromString(s string) (Name, error) {
 		return out, ErrInvalidEscape
 	}
 
-	if n > 0 && j > 0 || j > 1 {
+	if n > 0 || j > 1 {
 		if n >= len(label) {
 			return out, ErrLabelTooLong
 		}
 
-		copy(fragment[j:], zeros[:])
+		if j > 0 {
+			copy(fragment[j:], zeros[:])
 
-		label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
-		n++
+			label[n] = int64(binary.LittleEndian.Uint64(fragment[:]))
+			n++
+		}
 
 		label[0] = int64(uint64(label[0]) | uint64(n) | uint64(j<<4))
 

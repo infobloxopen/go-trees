@@ -25,6 +25,23 @@ func TestNameMakeNameFromString(t *testing.T) {
 	}, n.c)
 }
 
+func TestNameMakeNameFromString7ByteFirstLevelDomain(t *testing.T) {
+	s := "quickbookssupport.express"
+	n, err := MakeNameFromString(s)
+	assert.NoError(t, err)
+	assert.Equal(t, s, n.h, "human-readable name should be the same as input string")
+	assert.Equal(t, []int64{
+		// O B K C I U Q (2 bytes in incomplete dword and 3 dwords for the label)
+		0x4f424b4349555123,
+		// O P P U S S K O
+		0x4f50505553534b4f,
+		//             T R
+		0x0000000000005452,
+		// S S E R P X E (0 bytes in incomplete dword and 1 dword for the label)
+		0x5353455250584501,
+	}, n.c)
+}
+
 func TestNameMakeNameFromStringFQDN(t *testing.T) {
 	s := "looooooooooooooong.example.com."
 	n, err := MakeNameFromString(s)
