@@ -315,7 +315,11 @@ func (r run) writeAll(f io.Writer) (run, int, int, error) {
 	}
 
 	if n > 0 {
-		if err := r.write(f); err != nil {
+		tmp := run{
+			k: k[:m*n],
+			v: v[:n],
+		}
+		if err := tmp.write(f); err != nil {
 			return r, blks, n, err
 		}
 	}

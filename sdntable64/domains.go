@@ -158,7 +158,7 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 	}
 
 	if cur > 0 {
-		if _, err := f.Seek(int64(cur)*int64(blk), 0); err != nil {
+		if _, err := f.Seek(int64(cur)*int64(blk)*8*(int64(m)+1), 0); err != nil {
 			return out, err
 		}
 	}
@@ -174,7 +174,7 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 		cur++
 	}
 
-	if cur < last && cur >= d.blks {
+	if cur <= last && cur >= d.blks {
 		buf = buf.truncate(d.rem)
 		if err := buf.read(r); err != nil {
 			return out, err
@@ -202,8 +202,6 @@ func (d domains) merge() (domains, error) {
 	}()
 
 	b := bufio.NewWriter(dst)
-	defer b.Flush()
-
 	w := d.makeWriterRun(b)
 
 	src, err := os.Open(*d.path)
@@ -213,6 +211,11 @@ func (d domains) merge() (domains, error) {
 	defer src.Close()
 
 	r, err := d.data.merge(d.makeReaderRun(bufio.NewReader(src)), w)
+	if err != nil {
+		return d, err
+	}
+
+	err = b.Flush()
 	if err != nil {
 		return d, err
 	}
@@ -239,9 +242,13 @@ func (d domains) writeAll() (domains, error) {
 	}()
 
 	w := bufio.NewWriter(f)
-	defer w.Flush()
 
 	r, blks, rem, err := d.data.writeAll(w)
+	if err != nil {
+		return d, err
+	}
+
+	err = w.Flush()
 	if err != nil {
 		return d, err
 	}

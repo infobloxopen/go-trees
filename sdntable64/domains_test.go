@@ -299,3 +299,51 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		0x393231, 0x454c504d41584501, 0x4d4f4341,
 	}, tmp.k)
 }
+
+func TestDomainsGet(t *testing.T) {
+	noLogs := normalizeLoggers{
+		before: nil,
+		sort:   nil,
+		after:  nil,
+	}
+
+	ds := makeDomains()
+	for i := 0; i < 20; i++ {
+		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
+		ds = ds.append(d.GetComparable(), 1<<uint(i))
+	}
+
+	ds = ds.normalize(noLogs)
+
+	path := "test.db.3"
+	ds.path = &path
+	defer os.Remove(path)
+
+	blks2 := blocks[2]
+	blocks[2] = 5
+	defer func() { blocks[2] = blks2 }()
+
+	ds, err := ds.writeAll()
+	assert.NoError(t, err)
+
+	ds = ds.drop90()
+	for i := 20; i < 30; i++ {
+		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
+		ds = ds.append(d.GetComparable(), 1<<uint(i))
+	}
+	ds = ds.normalize(noLogs)
+
+	/*assert.Equal(t, uint64(0), ds.get(makeDomainNameFromString("--.example.com").GetComparable(), nil))
+	assert.Equal(t, uint64(1<<15), ds.get(makeDomainNameFromString("15.example.com").GetComparable(), nil))*/
+
+	for i := 30; i < 32; i++ {
+		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
+		ds = ds.append(d.GetComparable(), 1<<uint(i))
+	}
+	ds = ds.normalize(noLogs)
+
+	ds, err = ds.merge()
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint64(1<<19), ds.get(makeDomainNameFromString("19.example.com").GetComparable(), nil))
+}
