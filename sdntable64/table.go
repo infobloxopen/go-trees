@@ -2,6 +2,7 @@ package sdntable64
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/infobloxopen/go-trees/udomain"
 )
@@ -18,6 +19,12 @@ type Table64 struct {
 	body  [maxDomainLength]domains
 }
 
+type chDomains struct {
+	m int
+	d domains
+	c io.Closer
+}
+
 func NewTable64(opts ...Option) *Table64 {
 	t := &Table64{
 		ready: true,
@@ -30,7 +37,7 @@ func NewTable64(opts ...Option) *Table64 {
 	if t.opts.path != nil {
 		path := *t.opts.path
 		for i := range t.body {
-			t.body[i] = makeDomainsWithPath(path, i+1)
+			t.body[i] = makeDomainsWithPath(path)
 		}
 
 		if t.opts.limit < 10*megaByte {
@@ -45,6 +52,14 @@ func NewTable64(opts ...Option) *Table64 {
 	return t
 }
 
+func (t *Table64) Close() error {
+	for _, d := range t.body {
+		d.close()
+	}
+
+	return nil
+}
+
 func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 	c := k.GetComparable()
 	if len(c) > 0 {
@@ -54,7 +69,14 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 
 		i := len(c) - 1
 		t.body[i] = t.body[i].inplaceInsert(c, v)
-		t.flush()
+		for _, d := range t.flush() {
+			t.body[d.m-1] = d.d
+			if d.c != nil {
+				if err := d.c.Close(); err != nil {
+					panic(fmt.Errorf("can't close outdated storage for subarray %d", d.m))
+				}
+			}
+		}
 
 		return
 	}
@@ -62,28 +84,58 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 	t.root = v
 }
 
-func (t *Table64) Append(k domain.Name, v uint64) {
+func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []io.Closer) {
+	out := &Table64{
+		opts:  t.opts,
+		root:  t.root,
+		ready: t.ready,
+	}
+
+	copy(out.body[:], t.body[:])
+
 	c := k.GetComparable()
 	if len(c) > 0 {
 		i := len(c) - 1
-		t.body[i] = t.body[i].append(c, v)
-		t.ready = false
+		out.body[i] = t.body[i].append(c, v)
+		out.ready = false
 
-		t.flush()
-		return
+		flushed := t.flush()
+		if len(flushed) <= 0 {
+			return out, nil
+		}
+
+		c := make([]io.Closer, 0, len(flushed))
+		for _, d := range flushed {
+			out.body[d.m-1] = d.d
+			if d.c != nil {
+				c = append(c, d.c)
+			}
+		}
+
+		return out, c
 	}
 
-	t.root = v
+	out.root = v
+	return out, nil
 }
 
-func (t *Table64) Normalize() {
+func (t *Table64) Normalize() *Table64 {
+	out := &Table64{
+		opts:  t.opts,
+		root:  t.root,
+		ready: t.ready,
+	}
+
 	for i, d := range t.body {
-		if !d.ready {
-			t.body[i] = d.normalize(t.opts.log.normalize)
+		if d.ready {
+			out.body[i] = d
+		} else {
+			out.body[i] = d.normalize(t.opts.log.normalize)
 		}
 	}
 
-	t.ready = true
+	out.ready = true
+	return out
 }
 
 func (t *Table64) Get(k domain.Name) uint64 {
@@ -113,14 +165,29 @@ func (t *Table64) Size() int {
 	return s
 }
 
-func (t *Table64) flush() {
+func (t *Table64) flush() []chDomains {
 	if t.opts.path == nil {
-		return
+		return nil
 	}
 
-	for i := range t.makeFlushingList() {
-		t.body[i] = t.body[i].flush(t.opts.log.flush, t.opts.log.normalize)
+	idx := t.makeFlushingList()
+	if len(idx) <= 0 {
+		return nil
 	}
+
+	ch := make([]chDomains, 0, len(idx))
+	for i := range idx {
+		d := t.body[i]
+		d, c := d.flush(t.opts.log.flush, t.opts.log.normalize)
+
+		ch = append(ch, chDomains{
+			m: i + 1,
+			d: d,
+			c: c,
+		})
+	}
+
+	return ch
 }
 
 func (t *Table64) makeFlushingList() map[int]struct{} {

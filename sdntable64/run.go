@@ -95,6 +95,28 @@ func (r run) inplaceInsert(k []int64, v uint64) run {
 	return makeRun(k, v)
 }
 
+func (r run) clone() run {
+	if len(r.k) > 0 {
+		a := make([]int64, len(r.k))
+		copy(a, r.k)
+		r.k = a
+	}
+
+	if len(r.v) > 0 {
+		a := make([]uint64, len(r.v))
+		copy(a, r.v)
+		r.v = a
+	}
+
+	if len(r.i) > 0 {
+		a := make([]uint32, len(r.i))
+		copy(a, r.i)
+		r.i = a
+	}
+
+	return r
+}
+
 func (r run) append(k []int64, v uint64) run {
 	if len(r.v) > 0 {
 		if len(r.k) < len(r.v) {

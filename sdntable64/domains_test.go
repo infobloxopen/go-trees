@@ -2,6 +2,7 @@ package sdntable64
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
 	"testing"
@@ -17,6 +18,7 @@ func TestDomainsWriteAll(t *testing.T) {
 	}
 
 	ds := makeDomains()
+	defer assert.NoError(t, ds.close())
 	for i := 0; i < 20; i++ {
 		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
 		ds = ds.append(d.GetComparable(), 1<<uint(i))
@@ -71,15 +73,18 @@ func TestDomainsWriteAll(t *testing.T) {
 		0x00100, 0x40000, 0x00200, 0x80000,
 	}, ds.data.v)
 
-	path := "test.db.3"
-	ds.path = &path
-	defer os.Remove(path)
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		assert.FailNow(t, "failed to create directory: %s", err)
+	}
+	ds.dir = &dir
+	defer os.RemoveAll(dir)
 
 	blks2 := blocks[2]
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err := ds.writeAll()
+	ds, err = ds.writeAll()
 	assert.NoError(t, err)
 	assert.Equal(t, 4, ds.blks)
 	assert.Equal(t, 0, ds.rem)
@@ -98,6 +103,7 @@ func TestDomainsDrop90(t *testing.T) {
 	}
 
 	ds := makeDomains()
+	defer assert.NoError(t, ds.close())
 	for i := 0; i < 20; i++ {
 		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
 		ds = ds.append(d.GetComparable(), 1<<uint(i))
@@ -105,15 +111,18 @@ func TestDomainsDrop90(t *testing.T) {
 
 	ds = ds.normalize(noLogs)
 
-	path := "test.db.3"
-	ds.path = &path
-	defer os.Remove(path)
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		assert.FailNow(t, "failed to create directory: %s", err)
+	}
+	ds.dir = &dir
+	defer os.RemoveAll(dir)
 
 	blks2 := blocks[2]
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err := ds.writeAll()
+	ds, err = ds.writeAll()
 	assert.NoError(t, err)
 
 	ds = ds.drop90()
@@ -135,6 +144,7 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 	}
 
 	ds := makeDomains()
+	defer assert.NoError(t, ds.close())
 	for i := 0; i < 20; i++ {
 		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
 		ds = ds.append(d.GetComparable(), 1<<uint(i))
@@ -142,15 +152,18 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 
 	ds = ds.normalize(noLogs)
 
-	path := "test.db.3"
-	ds.path = &path
-	defer os.Remove(path)
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		assert.FailNow(t, "failed to create directory: %s", err)
+	}
+	ds.dir = &dir
+	defer os.RemoveAll(dir)
 
 	blks2 := blocks[2]
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err := ds.writeAll()
+	ds, err = ds.writeAll()
 	assert.NoError(t, err)
 
 	ds = ds.drop90()
@@ -194,7 +207,7 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		10, math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32,
 	}, ds.data.i)
 
-	ds, err = ds.merge()
+	ds, c, err := ds.merge()
 	assert.NoError(t, err)
 	assert.Equal(t, []int64{
 		// 0 0 1+3   E L P M A X E 1+0   M O C 1+4
@@ -226,6 +239,9 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		0x0000001, 0x00100000, 0x00200000, 0x00400000, 0x00800000, 0x01000000, 0x00000020, 0x02000000,
 		0x4000000, 0x08000000, 0x10000000, 0x20000000,
 	}, ds.data.v)
+	if c != nil {
+		assert.NoError(t, c.Close())
+	}
 
 	// 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29
 	// 00 10 20 01 11 21 02 12 22 03 13 23 04 14 24 05 15 25 06 16 26 07 17 27 08 18 28 09 19 29
@@ -308,6 +324,7 @@ func TestDomainsGet(t *testing.T) {
 	}
 
 	ds := makeDomains()
+	defer assert.NoError(t, ds.close())
 	for i := 0; i < 20; i++ {
 		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
 		ds = ds.append(d.GetComparable(), 1<<uint(i))
@@ -315,15 +332,18 @@ func TestDomainsGet(t *testing.T) {
 
 	ds = ds.normalize(noLogs)
 
-	path := "test.db.3"
-	ds.path = &path
-	defer os.Remove(path)
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		assert.FailNow(t, "failed to create directory: %s", err)
+	}
+	ds.dir = &dir
+	defer os.RemoveAll(dir)
 
 	blks2 := blocks[2]
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err := ds.writeAll()
+	ds, err = ds.writeAll()
 	assert.NoError(t, err)
 
 	ds = ds.drop90()
@@ -333,8 +353,8 @@ func TestDomainsGet(t *testing.T) {
 	}
 	ds = ds.normalize(noLogs)
 
-	/*assert.Equal(t, uint64(0), ds.get(makeDomainNameFromString("--.example.com").GetComparable(), nil))
-	assert.Equal(t, uint64(1<<15), ds.get(makeDomainNameFromString("15.example.com").GetComparable(), nil))*/
+	assert.Equal(t, uint64(0), ds.get(makeDomainNameFromString("--.example.com").GetComparable(), nil))
+	assert.Equal(t, uint64(1<<15), ds.get(makeDomainNameFromString("15.example.com").GetComparable(), nil))
 
 	for i := 30; i < 32; i++ {
 		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
@@ -342,8 +362,11 @@ func TestDomainsGet(t *testing.T) {
 	}
 	ds = ds.normalize(noLogs)
 
-	ds, err = ds.merge()
+	ds, c, err := ds.merge()
 	assert.NoError(t, err)
+	if c != nil {
+		assert.NoError(t, c.Close())
+	}
 
 	assert.Equal(t, uint64(1<<19), ds.get(makeDomainNameFromString("19.example.com").GetComparable(), nil))
 }

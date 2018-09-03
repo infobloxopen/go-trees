@@ -3,18 +3,21 @@ package sdntable64
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
-	"path/filepath"
 )
 
 type domains struct {
-	path  *string
-	ready bool
-	data  run
-	blks  int
-	rem   int
+	dir     *string
+	path    string
+	storage io.ReadSeeker
+	closer  io.Closer
+	ready   bool
+	data    run
+	blks    int
+	rem     int
 }
 
 func makeDomains() domains {
@@ -23,13 +26,19 @@ func makeDomains() domains {
 	}
 }
 
-func makeDomainsWithPath(path string, n int) domains {
+func makeDomainsWithPath(path string) domains {
 	d := makeDomains()
-
-	path = filepath.Join(path, fmt.Sprintf("%03d", n))
-	d.path = &path
+	d.dir = &path
 
 	return d
+}
+
+func (d domains) close() error {
+	if d.closer != nil {
+		return d.closer.Close()
+	}
+
+	return nil
 }
 
 func (d domains) inplaceInsert(k []int64, v uint64) domains {
@@ -42,7 +51,12 @@ func (d domains) inplaceInsert(k []int64, v uint64) domains {
 }
 
 func (d domains) append(k []int64, v uint64) domains {
-	d.data = d.data.append(k, v)
+	r := d.data
+	if d.ready {
+		r = r.clone()
+	}
+
+	d.data = r.append(k, v)
 	d.ready = false
 	return d
 }
@@ -66,7 +80,7 @@ func (d domains) get(k []int64, read func(size, from, to int)) uint64 {
 	if end != 0 {
 		tmp, err := d.readFromDisk(start, end, read)
 		if err != nil {
-			panic(fmt.Errorf("can't read data for range [%d, %d) from %s: %s", start, end, *d.path, err))
+			panic(fmt.Errorf("can't read data for range [%d, %d) from %s: %s", start, end, d.path, err))
 		}
 
 		v, _, _ = tmp.get(k)
@@ -83,9 +97,10 @@ func (d domains) size90() int {
 	return d.data.size90()
 }
 
-func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) domains {
-	if d.path == nil {
-		return d
+func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) (domains, io.Closer) {
+	var closer io.Closer
+	if d.dir == nil {
+		return d, closer
 	}
 
 	n := len(d.data.v)
@@ -102,12 +117,13 @@ func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) domains {
 
 		d = d.normalize(nLog)
 		if len(d.data.i) > 0 {
-			tmp, err := d.merge()
+			tmp, c, err := d.merge()
 			if err != nil {
 				panic(err)
 			}
 
 			d = tmp
+			closer = c
 		} else {
 			tmp, err := d.writeAll()
 			if err != nil {
@@ -124,7 +140,7 @@ func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) domains {
 		}
 	}
 
-	return d
+	return d, closer
 }
 
 func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (run, error) {
@@ -133,13 +149,9 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 		v: []uint64{},
 	}
 
-	f, err := os.Open(*d.path)
-	if err != nil {
-		return out, err
+	if d.storage == nil {
+		return out, fmt.Errorf("no storage to read")
 	}
-	defer f.Close()
-
-	r := bufio.NewReader(f)
 
 	n := len(d.data.v)
 	m := len(d.data.k) / n
@@ -157,14 +169,12 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 		log(m, cur, last)
 	}
 
-	if cur > 0 {
-		if _, err := f.Seek(int64(cur)*int64(blk)*8*(int64(m)+1), 0); err != nil {
-			return out, err
-		}
+	if _, err := d.storage.Seek(int64(cur)*int64(blk)*8*(int64(m)+1), 0); err != nil {
+		return out, err
 	}
 
 	for cur < d.blks && cur <= last {
-		if err := buf.read(r); err != nil {
+		if err := buf.read(d.storage); err != nil {
 			return out, err
 		}
 
@@ -176,7 +186,7 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 
 	if cur <= last && cur >= d.blks {
 		buf = buf.truncate(d.rem)
-		if err := buf.read(r); err != nil {
+		if err := buf.read(d.storage); err != nil {
 			return out, err
 		}
 
@@ -187,75 +197,96 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 	return out, nil
 }
 
-func (d domains) merge() (domains, error) {
-	dst, err := ioutil.TempFile("", "*")
-	if err != nil {
-		return d, err
-	}
-	defer func() {
-		dst.Close()
-		if err == nil {
-			os.Rename(dst.Name(), *d.path)
-		} else {
-			os.Remove(dst.Name())
+func (d domains) merge() (domains, io.Closer, error) {
+	n := len(d.data.v)
+	var closer io.Closer
+	if n > 0 {
+		if len(d.data.k) < n {
+			panic(fmt.Errorf("corrupted run (k: %d, v: %d) on write all", len(d.data.k), n))
 		}
-	}()
 
-	b := bufio.NewWriter(dst)
-	w := d.makeWriterRun(b)
+		dst, err := ioutil.TempFile(*d.dir, fmt.Sprintf("*.%03d", len(d.data.k)/n))
+		if err != nil {
+			return d, closer, err
+		}
 
-	src, err := os.Open(*d.path)
-	if err != nil {
-		return d, err
+		path := dst.Name()
+		defer func() {
+			if err != nil {
+				dst.Close()
+				os.Remove(path)
+			}
+		}()
+
+		b := bufio.NewWriter(dst)
+		w := d.makeWriterRun(b)
+
+		src, err := os.Open(d.path)
+		if err != nil {
+			return d, closer, err
+		}
+		defer src.Close()
+
+		r, err := d.data.merge(d.makeReaderRun(bufio.NewReader(src)), w)
+		if err != nil {
+			return d, closer, err
+		}
+
+		err = b.Flush()
+		if err != nil {
+			return d, closer, err
+		}
+
+		closer = d.closer
+
+		d.path = path
+		d.storage = dst
+		d.closer = dst
+		d.data = r
+		d.blks = w.blks
+		d.rem = w.rem
 	}
-	defer src.Close()
 
-	r, err := d.data.merge(d.makeReaderRun(bufio.NewReader(src)), w)
-	if err != nil {
-		return d, err
-	}
-
-	err = b.Flush()
-	if err != nil {
-		return d, err
-	}
-
-	d.data = r
-	d.blks = w.blks
-	d.rem = w.rem
-
-	return d, nil
+	return d, closer, nil
 }
 
 func (d domains) writeAll() (domains, error) {
-	f, err := ioutil.TempFile("", "*")
-	if err != nil {
-		return d, err
-	}
-	defer func() {
-		f.Close()
-		if err == nil {
-			os.Rename(f.Name(), *d.path)
-		} else {
-			os.Remove(f.Name())
+	n := len(d.data.v)
+	if n > 0 {
+		if len(d.data.k) < n {
+			panic(fmt.Errorf("corrupted run (k: %d, v: %d) on write all", len(d.data.k), n))
 		}
-	}()
 
-	w := bufio.NewWriter(f)
+		f, err := ioutil.TempFile(*d.dir, fmt.Sprintf("*.%03d", len(d.data.k)/n))
+		if err != nil {
+			return d, err
+		}
+		path := f.Name()
+		defer func() {
+			if err != nil {
+				f.Close()
+				os.Remove(path)
+			}
+		}()
 
-	r, blks, rem, err := d.data.writeAll(w)
-	if err != nil {
-		return d, err
+		w := bufio.NewWriter(f)
+
+		r, blks, rem, err := d.data.writeAll(w)
+		if err != nil {
+			return d, err
+		}
+
+		err = w.Flush()
+		if err != nil {
+			return d, err
+		}
+
+		d.path = path
+		d.storage = f
+		d.data = r
+		d.blks = blks
+		d.rem = rem
 	}
-
-	err = w.Flush()
-	if err != nil {
-		return d, err
-	}
-
-	d.data = r
-	d.blks = blks
-	d.rem = rem
 
 	return d, nil
 }

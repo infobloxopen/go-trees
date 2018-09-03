@@ -46,14 +46,14 @@ func TestTable64InplaceInsert(t *testing.T) {
 
 func TestTable64Append(t *testing.T) {
 	dnt := NewTable64()
-	dnt.Append(makeDomainNameFromString("."), 1)
+	dnt, _ = dnt.Append(makeDomainNameFromString("."), 1)
 	assert.Equal(t, uint64(1), dnt.root)
 	assert.True(t, dnt.ready)
 
 	n := makeDomainNameFromString("example.com")
 	i := len(n.GetComparable()) - 1
 
-	dnt.Append(n, 2)
+	dnt, _ = dnt.Append(n, 2)
 	assert.False(t, dnt.ready)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
@@ -65,7 +65,7 @@ func TestTable64Append(t *testing.T) {
 	j := len(n.GetComparable()) - 1
 	assert.Equal(t, i, j)
 
-	dnt.Append(n, 4)
+	dnt, _ = dnt.Append(n, 4)
 	assert.False(t, dnt.ready)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   M O C 1+4
@@ -82,14 +82,14 @@ func TestTable64Normalize(t *testing.T) {
 	n := makeDomainNameFromString("example.com")
 	i := len(n.GetComparable()) - 1
 
-	dnt.Append(n, 2)
-	dnt.Append(makeDomainNameFromString("example.gov"), 16)
-	dnt.Append(makeDomainNameFromString("example.net"), 4)
-	dnt.Append(makeDomainNameFromString("example.org"), 1)
-	dnt.Append(makeDomainNameFromString("example.gov"), 8)
+	dnt, _ = dnt.Append(n, 2)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.gov"), 16)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.net"), 4)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.org"), 1)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.gov"), 8)
 	assert.False(t, dnt.ready)
 
-	dnt.Normalize()
+	dnt = dnt.Normalize()
 	assert.True(t, dnt.ready)
 	assert.Equal(t, []int64{
 		// E L P M A X E 1+0   G R O 1+4
@@ -112,12 +112,12 @@ func TestTable64Get(t *testing.T) {
 	assert.Equal(t, uint64(1), dnt.Get(makeDomainNameFromString(".")))
 
 	dnt = NewTable64()
-	dnt.Append(makeDomainNameFromString("example.com"), 2)
-	dnt.Append(makeDomainNameFromString("example.gov"), 16)
-	dnt.Append(makeDomainNameFromString("example.net"), 4)
-	dnt.Append(makeDomainNameFromString("example.org"), 1)
-	dnt.Append(makeDomainNameFromString("example.gov"), 8)
-	dnt.Normalize()
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.com"), 2)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.gov"), 16)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.net"), 4)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.org"), 1)
+	dnt, _ = dnt.Append(makeDomainNameFromString("example.gov"), 8)
+	dnt = dnt.Normalize()
 
 	assert.Equal(t, uint64(0), dnt.Get(makeDomainNameFromString("example.edu")))
 	assert.Equal(t, uint64(1), dnt.Get(makeDomainNameFromString("example.org")))
