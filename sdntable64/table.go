@@ -2,8 +2,6 @@ package sdntable64
 
 import (
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/infobloxopen/go-trees/udomain"
 )
@@ -23,13 +21,7 @@ type Table64 struct {
 type chDomains struct {
 	m int
 	d domains
-	p string
-	c io.Closer
-}
-
-type Garbage struct {
-	Path   string
-	Closer io.Closer
+	g *Getter
 }
 
 func NewTable64(opts ...Option) *Table64 {
@@ -78,13 +70,9 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 		t.body[i] = t.body[i].inplaceInsert(c, v)
 		for _, d := range t.flush() {
 			t.body[d.m-1] = d.d
-			if d.c != nil {
-				if err := d.c.Close(); err != nil {
-					panic(fmt.Errorf("can't close outdated storage %q for subarray %d", d.p, d.m))
-				}
-
-				if err := os.Remove(d.p); err != nil {
-					panic(fmt.Errorf("can't remove outdated storage %q for subarray %d", d.p, d.m))
+			if d.g != nil {
+				if err := d.g.Stop(); err != nil {
+					panic(fmt.Errorf("can't stop getter %q for subarray %d", d.g.path, d.m))
 				}
 			}
 		}
@@ -95,7 +83,7 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 	t.root = v
 }
 
-func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []Garbage) {
+func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []*Getter) {
 	out := &Table64{
 		opts:  t.opts,
 		root:  t.root,
@@ -115,14 +103,11 @@ func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []Garbage) {
 			return out, nil
 		}
 
-		g := make([]Garbage, 0, len(flushed))
+		g := make([]*Getter, 0, len(flushed))
 		for _, d := range flushed {
 			out.body[d.m-1] = d.d
-			if d.c != nil {
-				g = append(g, Garbage{
-					Path:   d.p,
-					Closer: d.c,
-				})
+			if d.g != nil {
+				g = append(g, d.g)
 			}
 		}
 
@@ -192,13 +177,12 @@ func (t *Table64) flush() []chDomains {
 	ch := make([]chDomains, 0, len(idx))
 	for i := range idx {
 		d := t.body[i]
-		d, p, c := d.flush(t.opts.log.flush, t.opts.log.normalize)
+		d, g := d.flush(t.opts.log.flush, t.opts.log.read, t.opts.log.normalize)
 
 		ch = append(ch, chDomains{
 			m: i + 1,
 			d: d,
-			p: p,
-			c: c,
+			g: g,
 		})
 	}
 

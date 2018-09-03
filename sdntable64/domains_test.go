@@ -84,7 +84,7 @@ func TestDomainsWriteAll(t *testing.T) {
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err = ds.writeAll()
+	ds, err = ds.writeAll(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, ds.blks)
 	assert.Equal(t, 0, ds.rem)
@@ -122,7 +122,7 @@ func TestDomainsDrop90(t *testing.T) {
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err = ds.writeAll()
+	ds, err = ds.writeAll(nil)
 	assert.NoError(t, err)
 
 	ds = ds.drop90()
@@ -163,7 +163,7 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err = ds.writeAll()
+	ds, err = ds.writeAll(nil)
 	assert.NoError(t, err)
 
 	ds = ds.drop90()
@@ -207,7 +207,7 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		10, math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32,
 	}, ds.data.i)
 
-	ds, p, c, err := ds.merge()
+	ds, g, err := ds.merge(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []int64{
 		// 0 0 1+3   E L P M A X E 1+0   M O C 1+4
@@ -239,9 +239,8 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		0x0000001, 0x00100000, 0x00200000, 0x00400000, 0x00800000, 0x01000000, 0x00000020, 0x02000000,
 		0x4000000, 0x08000000, 0x10000000, 0x20000000,
 	}, ds.data.v)
-	if c != nil {
-		assert.NoError(t, c.Close())
-		assert.NoError(t, os.Remove(p))
+	if g != nil {
+		assert.NoError(t, g.Stop())
 	}
 
 	// 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29
@@ -251,7 +250,19 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		15, 17, 20, 23, 26, 29,
 	}, ds.data.i)
 
-	tmp, err := ds.readFromDisk(0, math.MaxUint32, nil)
+	f, ok := ds.getter.f.(*os.File)
+	assert.True(t, ok)
+	tmp, err := ds.getter.read(f, 0, math.MaxUint32,
+		run{
+			k: []int64{},
+			v: []uint64{},
+		},
+		run{
+			k: make([]int64, g.m*g.blk),
+			v: make([]uint64, g.blk),
+		},
+		nil,
+	)
 	assert.NoError(t, err)
 	assert.Equal(t, []int64{
 		// 0 0 1+3   E L P M A X E 1+0   M O C 1+4
@@ -344,7 +355,7 @@ func TestDomainsGet(t *testing.T) {
 	blocks[2] = 5
 	defer func() { blocks[2] = blks2 }()
 
-	ds, err = ds.writeAll()
+	ds, err = ds.writeAll(nil)
 	assert.NoError(t, err)
 
 	ds = ds.drop90()
@@ -363,11 +374,10 @@ func TestDomainsGet(t *testing.T) {
 	}
 	ds = ds.normalize(noLogs)
 
-	ds, p, c, err := ds.merge()
+	ds, g, err := ds.merge(nil)
 	assert.NoError(t, err)
-	if c != nil {
-		assert.NoError(t, c.Close())
-		assert.NoError(t, os.Remove(p))
+	if g != nil {
+		assert.NoError(t, g.Stop())
 	}
 
 	assert.Equal(t, uint64(1<<19), ds.get(makeDomainNameFromString("19.example.com").GetComparable(), nil))
