@@ -3,6 +3,7 @@ package sdntable64
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/infobloxopen/go-trees/udomain"
 )
@@ -22,7 +23,13 @@ type Table64 struct {
 type chDomains struct {
 	m int
 	d domains
+	p string
 	c io.Closer
+}
+
+type Garbage struct {
+	Path   string
+	Closer io.Closer
 }
 
 func NewTable64(opts ...Option) *Table64 {
@@ -73,7 +80,11 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 			t.body[d.m-1] = d.d
 			if d.c != nil {
 				if err := d.c.Close(); err != nil {
-					panic(fmt.Errorf("can't close outdated storage for subarray %d", d.m))
+					panic(fmt.Errorf("can't close outdated storage %q for subarray %d", d.p, d.m))
+				}
+
+				if err := os.Remove(d.p); err != nil {
+					panic(fmt.Errorf("can't remove outdated storage %q for subarray %d", d.p, d.m))
 				}
 			}
 		}
@@ -84,7 +95,7 @@ func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 	t.root = v
 }
 
-func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []io.Closer) {
+func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []Garbage) {
 	out := &Table64{
 		opts:  t.opts,
 		root:  t.root,
@@ -104,15 +115,18 @@ func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []io.Closer) {
 			return out, nil
 		}
 
-		c := make([]io.Closer, 0, len(flushed))
+		g := make([]Garbage, 0, len(flushed))
 		for _, d := range flushed {
 			out.body[d.m-1] = d.d
 			if d.c != nil {
-				c = append(c, d.c)
+				g = append(g, Garbage{
+					Path:   d.p,
+					Closer: d.c,
+				})
 			}
 		}
 
-		return out, c
+		return out, g
 	}
 
 	out.root = v
@@ -178,11 +192,12 @@ func (t *Table64) flush() []chDomains {
 	ch := make([]chDomains, 0, len(idx))
 	for i := range idx {
 		d := t.body[i]
-		d, c := d.flush(t.opts.log.flush, t.opts.log.normalize)
+		d, p, c := d.flush(t.opts.log.flush, t.opts.log.normalize)
 
 		ch = append(ch, chDomains{
 			m: i + 1,
 			d: d,
+			p: p,
 			c: c,
 		})
 	}

@@ -207,7 +207,7 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 		10, math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32,
 	}, ds.data.i)
 
-	ds, c, err := ds.merge()
+	ds, p, c, err := ds.merge()
 	assert.NoError(t, err)
 	assert.Equal(t, []int64{
 		// 0 0 1+3   E L P M A X E 1+0   M O C 1+4
@@ -241,6 +241,7 @@ func TestDomainsMergeAndReadFromDisk(t *testing.T) {
 	}, ds.data.v)
 	if c != nil {
 		assert.NoError(t, c.Close())
+		assert.NoError(t, os.Remove(p))
 	}
 
 	// 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29
@@ -362,10 +363,11 @@ func TestDomainsGet(t *testing.T) {
 	}
 	ds = ds.normalize(noLogs)
 
-	ds, c, err := ds.merge()
+	ds, p, c, err := ds.merge()
 	assert.NoError(t, err)
 	if c != nil {
 		assert.NoError(t, c.Close())
+		assert.NoError(t, os.Remove(p))
 	}
 
 	assert.Equal(t, uint64(1<<19), ds.get(makeDomainNameFromString("19.example.com").GetComparable(), nil))

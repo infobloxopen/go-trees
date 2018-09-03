@@ -97,10 +97,14 @@ func (d domains) size90() int {
 	return d.data.size90()
 }
 
-func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) (domains, io.Closer) {
-	var closer io.Closer
+func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) (domains, string, io.Closer) {
+	var (
+		path   string
+		closer io.Closer
+	)
+
 	if d.dir == nil {
-		return d, closer
+		return d, path, closer
 	}
 
 	n := len(d.data.v)
@@ -117,12 +121,13 @@ func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) (domains, io.Cl
 
 		d = d.normalize(nLog)
 		if len(d.data.i) > 0 {
-			tmp, c, err := d.merge()
+			tmp, p, c, err := d.merge()
 			if err != nil {
 				panic(err)
 			}
 
 			d = tmp
+			path = p
 			closer = c
 		} else {
 			tmp, err := d.writeAll()
@@ -140,7 +145,7 @@ func (d domains) flush(fLog flushLoggers, nLog normalizeLoggers) (domains, io.Cl
 		}
 	}
 
-	return d, closer
+	return d, path, closer
 }
 
 func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (run, error) {
@@ -197,24 +202,28 @@ func (d domains) readFromDisk(start, end uint32, log func(size, from, to int)) (
 	return out, nil
 }
 
-func (d domains) merge() (domains, io.Closer, error) {
+func (d domains) merge() (domains, string, io.Closer, error) {
+	var (
+		path   string
+		closer io.Closer
+	)
+
 	n := len(d.data.v)
-	var closer io.Closer
 	if n > 0 {
 		if len(d.data.k) < n {
 			panic(fmt.Errorf("corrupted run (k: %d, v: %d) on write all", len(d.data.k), n))
 		}
 
-		dst, err := ioutil.TempFile(*d.dir, fmt.Sprintf("*.%03d", len(d.data.k)/n))
+		dst, err := ioutil.TempFile(*d.dir, fmt.Sprintf("%03d.", len(d.data.k)/n))
 		if err != nil {
-			return d, closer, err
+			return d, path, closer, err
 		}
 
-		path := dst.Name()
+		p := dst.Name()
 		defer func() {
 			if err != nil {
 				dst.Close()
-				os.Remove(path)
+				os.Remove(p)
 			}
 		}()
 
@@ -223,31 +232,42 @@ func (d domains) merge() (domains, io.Closer, error) {
 
 		src, err := os.Open(d.path)
 		if err != nil {
-			return d, closer, err
+			return d, path, closer, err
 		}
 		defer src.Close()
 
 		r, err := d.data.merge(d.makeReaderRun(bufio.NewReader(src)), w)
 		if err != nil {
-			return d, closer, err
+			return d, path, closer, err
 		}
 
 		err = b.Flush()
 		if err != nil {
-			return d, closer, err
+			return d, path, closer, err
 		}
 
+		err = dst.Close()
+		if err != nil {
+			return d, path, closer, err
+		}
+
+		f, err := os.Open(p)
+		if err != nil {
+			return d, path, closer, err
+		}
+
+		path = d.path
 		closer = d.closer
 
-		d.path = path
-		d.storage = dst
-		d.closer = dst
+		d.path = p
+		d.storage = f
+		d.closer = f
 		d.data = r
 		d.blks = w.blks
 		d.rem = w.rem
 	}
 
-	return d, closer, nil
+	return d, path, closer, nil
 }
 
 func (d domains) writeAll() (domains, error) {
@@ -257,7 +277,7 @@ func (d domains) writeAll() (domains, error) {
 			panic(fmt.Errorf("corrupted run (k: %d, v: %d) on write all", len(d.data.k), n))
 		}
 
-		f, err := ioutil.TempFile(*d.dir, fmt.Sprintf("*.%03d", len(d.data.k)/n))
+		f, err := ioutil.TempFile(*d.dir, fmt.Sprintf("%03d.", len(d.data.k)/n))
 		if err != nil {
 			return d, err
 		}
@@ -277,6 +297,16 @@ func (d domains) writeAll() (domains, error) {
 		}
 
 		err = w.Flush()
+		if err != nil {
+			return d, err
+		}
+
+		err = f.Close()
+		if err != nil {
+			return d, err
+		}
+
+		f, err = os.Open(path)
 		if err != nil {
 			return d, err
 		}
