@@ -3,6 +3,7 @@ package sdntable64
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 )
@@ -35,6 +36,19 @@ func (d domains) close() error {
 	}
 
 	return nil
+}
+
+func (d domains) insert(k []int64, v uint64) (domains, bool) {
+	if !d.ready {
+		panic(fmt.Errorf("run is not ready for inplace insert %d (%x)", len(k), v))
+	}
+
+	if r, ok := d.data.insert(k, v); ok {
+		d.data = r
+		return d, true
+	}
+
+	return d, false
 }
 
 func (d domains) inplaceInsert(k []int64, v uint64) domains {
@@ -113,24 +127,13 @@ func (d domains) flush(fLog flushLoggers, rLog func(size, from, to int), nLog no
 		}
 
 		d = d.normalize(nLog)
-		if len(d.data.i) > 0 {
-			tmp, g, err := d.merge(rLog)
-			if err != nil {
-				panic(err)
-			}
-
-			d = tmp
-			getter = g
-		} else {
-			tmp, err := d.writeAll(rLog)
-			if err != nil {
-				panic(err)
-			}
-
-			d = tmp
+		tmp, g, err := d.merge(rLog)
+		if err != nil {
+			panic(err)
 		}
 
-		d = d.drop90()
+		d = tmp.drop90()
+		getter = g
 
 		if fLog.after != nil {
 			fLog.after(m, n, len(d.data.v))
@@ -166,13 +169,15 @@ func (d domains) merge(log func(size, from, to int)) (domains, *Getter, error) {
 		b := bufio.NewWriter(dst)
 		w := d.makeWriterRun(b)
 
-		src, err := os.Open(d.getter.path)
+		r, c, err := d.openStorage()
 		if err != nil {
 			return d, getter, err
 		}
-		defer src.Close()
+		if c != nil {
+			defer c.Close()
+		}
 
-		r, err := d.data.merge(d.makeReaderRun(bufio.NewReader(src)), w)
+		data, err := d.data.merge(r, w)
 		if err != nil {
 			return d, getter, err
 		}
@@ -196,7 +201,7 @@ func (d domains) merge(log func(size, from, to int)) (domains, *Getter, error) {
 		getter = d.getter
 
 		d.getter = g
-		d.data = r
+		d.data = data
 		d.blks = w.blks
 		d.rem = w.rem
 	}
@@ -204,56 +209,17 @@ func (d domains) merge(log func(size, from, to int)) (domains, *Getter, error) {
 	return d, getter, nil
 }
 
-func (d domains) writeAll(log func(size, from, to int)) (domains, error) {
-	n := len(d.data.v)
-	if n > 0 {
-		if len(d.data.k) < n {
-			panic(fmt.Errorf("corrupted run (k: %d, v: %d) on write all", len(d.data.k), n))
-		}
-
-		m := len(d.data.k) / n
-		f, err := ioutil.TempFile(*d.dir, fmt.Sprintf("%03d.", m))
-		if err != nil {
-			return d, err
-		}
-		path := f.Name()
-		defer func() {
-			if err != nil {
-				f.Close()
-				os.Remove(path)
-			}
-		}()
-
-		w := bufio.NewWriter(f)
-
-		r, blks, rem, err := d.data.writeAll(w)
-		if err != nil {
-			return d, err
-		}
-
-		err = w.Flush()
-		if err != nil {
-			return d, err
-		}
-
-		err = f.Close()
-		if err != nil {
-			return d, err
-		}
-
-		g := newGetter(path, m, blks, rem, log)
-		err = g.start()
-		if err != nil {
-			return d, err
-		}
-
-		d.getter = g
-		d.data = r
-		d.blks = blks
-		d.rem = rem
+func (d domains) openStorage() (*rRun, io.Closer, error) {
+	if d.getter == nil {
+		return d.makeReaderRun(nil), nil, nil
 	}
 
-	return d, nil
+	f, err := os.Open(d.getter.path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return d.makeReaderRun(bufio.NewReader(f)), f, nil
 }
 
 func (d domains) drop90() domains {

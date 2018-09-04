@@ -31,6 +31,85 @@ func makeRunForBlock(n int) run {
 	}
 }
 
+func (r run) insert(k []int64, v uint64) (run, bool) {
+	if len(r.v) > 0 {
+		if len(r.k) < len(r.v) {
+			panic(fmt.Errorf("corrupted run (k: %d, v: %d) on inplace insert %d (%x)", len(r.k), len(r.v), len(k), v))
+		}
+
+		if len(r.k)/len(r.v) != len(k) {
+			panic(fmt.Errorf("invalid key on inplace insert %d (%x) for run (k: %d, v: %d, n: %d)",
+				len(k), v, len(r.k), len(r.v), len(r.k)/len(r.v)),
+			)
+		}
+
+		left := 0
+		right := len(r.v)
+		for {
+			m := (left + right) / 2
+			b := m * len(k)
+			d := compare(k, r.k[b:b+len(k)])
+			if d == 0 {
+				if r.v[m] == v {
+					return r, false
+				}
+
+				tmp := make([]uint64, len(r.v))
+				copy(tmp, r.v)
+				tmp[m] = v
+				r.v = tmp
+
+				if len(r.i) > 0 {
+					tmp := make([]uint32, len(r.i))
+					copy(tmp, r.i)
+					tmp[m] = math.MaxUint32
+					r.i = tmp
+				}
+
+				return r, true
+			}
+
+			if d < 0 {
+				right = m
+				if left == right {
+					break
+				}
+			} else {
+				if left == m {
+					left = right
+					break
+				}
+
+				left = m
+			}
+		}
+
+		r.k = append(r.k, k...)
+		r.v = append(r.v, v)
+		if len(r.i) > 0 {
+			r.i = append(r.i, math.MaxUint32)
+		}
+
+		if right < len(r.v)-1 {
+			i := len(k) * right
+			copy(r.k[i+len(k):], r.k[i:])
+			copy(r.k[i:], k)
+
+			copy(r.v[right+1:], r.v[right:])
+			r.v[right] = v
+
+			if len(r.i) > 0 {
+				copy(r.i[right+1:], r.i[right:])
+				r.i[right] = math.MaxUint32
+			}
+		}
+
+		return r, true
+	}
+
+	return makeRun(k, v), true
+}
+
 func (r run) inplaceInsert(k []int64, v uint64) run {
 	if len(r.v) > 0 {
 		if len(r.k) < len(r.v) {
@@ -51,6 +130,10 @@ func (r run) inplaceInsert(k []int64, v uint64) run {
 			d := compare(k, r.k[b:b+len(k)])
 			if d == 0 {
 				r.v[m] = v
+				if len(r.i) > 0 {
+					r.i[m] = math.MaxUint32
+				}
+
 				return r
 			}
 
@@ -302,54 +385,6 @@ func (r run) write(f io.Writer) error {
 	return nil
 }
 
-func (r run) writeAll(f io.Writer) (run, int, int, error) {
-	n := len(r.v)
-	m := len(r.k) / n
-
-	blk := blocks[m-1]
-	blks := 0
-
-	k := r.k
-	v := r.v
-
-	idx := make([]uint32, n)
-	for i := range idx {
-		if i >= math.MaxUint32 {
-			return r, blks, n, fmt.Errorf("run %d overflow", m)
-		}
-		idx[i] = uint32(i)
-	}
-
-	for n >= blk {
-		tmp := run{
-			k: k[:m*blk],
-			v: v[:blk],
-		}
-		if err := tmp.write(f); err != nil {
-			return r, blks, n, err
-		}
-
-		k = k[m*blk:]
-		v = v[blk:]
-
-		n -= blk
-		blks++
-	}
-
-	if n > 0 {
-		tmp := run{
-			k: k[:m*n],
-			v: v[:n],
-		}
-		if err := tmp.write(f); err != nil {
-			return r, blks, n, err
-		}
-	}
-
-	r.i = idx
-	return r, blks, n, nil
-}
-
 func (r run) merge(in *rRun, out *wRun) (run, error) {
 	n := len(r.v)
 	m := len(r.k) / n
@@ -363,7 +398,11 @@ func (r run) merge(in *rRun, out *wRun) (run, error) {
 		return r, err
 	}
 
-	var c uint32
+	var (
+		c uint32
+		z int
+	)
+
 	for len(mK) > 0 || len(sK) > 0 {
 		var d int64 = 1
 		if len(mK) > 0 && len(sK) > 0 {
@@ -373,16 +412,31 @@ func (r run) merge(in *rRun, out *wRun) (run, error) {
 		}
 
 		if d <= 0 {
-			if err := out.put(mK[:m], r.v[i]); err != nil {
-				return r, err
+			if r.v[i] != 0 {
+				if err := out.put(mK[:m], r.v[i]); err != nil {
+					return r, err
+				}
+
+				idx[i-z] = c
+
+				c++
+				if c >= math.MaxUint32 {
+					return r, fmt.Errorf("run %d overflow", m)
+				}
+			} else {
+				z++
 			}
 
-			mK = mK[m:]
-			idx[i] = c
 			i++
+			mK = mK[m:]
 		} else {
 			if err := out.put(sK, sV); err != nil {
 				return r, err
+			}
+
+			c++
+			if c >= math.MaxUint32 {
+				return r, fmt.Errorf("run %d overflow", m)
 			}
 		}
 
@@ -392,18 +446,33 @@ func (r run) merge(in *rRun, out *wRun) (run, error) {
 				return r, err
 			}
 		}
-
-		c++
-		if c >= math.MaxUint32 {
-			return r, fmt.Errorf("run %d overflow", m)
-		}
 	}
 
 	if err := out.flush(); err != nil {
 		return r, err
 	}
 
-	r.i = idx
+	if z > 0 {
+		keys := make([]int64, (n-z)*m)
+		values := make([]uint64, n-z)
+
+		a := 0
+		j := 0
+		for i, v := range r.v {
+			if v != 0 {
+				copy(keys[a:a+m], r.k[i*m:])
+				values[j] = v
+
+				a += m
+				j++
+			}
+		}
+
+		r.k = keys
+		r.v = values
+	}
+
+	r.i = idx[:n-z]
 	return r, nil
 }
 

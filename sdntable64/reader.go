@@ -30,6 +30,10 @@ func (r *rRun) isEmpty() bool {
 
 func (r *rRun) next() ([]int64, uint64, error) {
 	if len(r.k) <= 0 {
+		if r.r == nil {
+			return nil, 0, nil
+		}
+
 		if r.blks > 0 {
 			r.blks--
 		} else if r.rem > 0 {

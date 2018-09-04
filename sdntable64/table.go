@@ -59,6 +59,55 @@ func (t *Table64) Close() error {
 	return nil
 }
 
+func (t *Table64) Insert(k domain.Name, v uint64) (*Table64, []*Getter) {
+	c := k.GetComparable()
+	if len(c) > 0 {
+		if !t.ready {
+			panic(fmt.Errorf("table is not ready"))
+		}
+
+		i := len(c) - 1
+		data, ok := t.body[i].insert(c, v)
+		if !ok {
+			return t, nil
+		}
+
+		out := &Table64{
+			opts:  t.opts,
+			root:  v,
+			ready: t.ready,
+			body:  t.body,
+		}
+
+		out.body[i] = data
+		flushed := out.flush()
+		if len(flushed) <= 0 {
+			return out, nil
+		}
+
+		g := make([]*Getter, 0, len(flushed))
+		for _, d := range flushed {
+			out.body[d.m-1] = d.d
+			if d.g != nil {
+				g = append(g, d.g)
+			}
+		}
+
+		return out, g
+	}
+
+	return &Table64{
+		opts:  t.opts,
+		root:  v,
+		ready: t.ready,
+		body:  t.body,
+	}, nil
+}
+
+func (t *Table64) Delete(k domain.Name) (*Table64, []*Getter) {
+	return t.Insert(k, 0)
+}
+
 func (t *Table64) InplaceInsert(k domain.Name, v uint64) {
 	c := k.GetComparable()
 	if len(c) > 0 {
@@ -88,9 +137,8 @@ func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []*Getter) {
 		opts:  t.opts,
 		root:  t.root,
 		ready: t.ready,
+		body:  t.body,
 	}
-
-	copy(out.body[:], t.body[:])
 
 	c := k.GetComparable()
 	if len(c) > 0 {
@@ -98,7 +146,7 @@ func (t *Table64) Append(k domain.Name, v uint64) (*Table64, []*Getter) {
 		out.body[i] = t.body[i].append(c, v)
 		out.ready = false
 
-		flushed := t.flush()
+		flushed := out.flush()
 		if len(flushed) <= 0 {
 			return out, nil
 		}
