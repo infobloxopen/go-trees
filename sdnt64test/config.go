@@ -39,15 +39,11 @@ func init() {
 			mapDataStruct, tableDataStruct, memTableDataStruct))
 	flag.DurationVar(&conf.pause, "p", 0, "pause before exit")
 	flag.IntVar(&conf.reqs, "n", -1, "number of domains to request, <0 - request all domains")
-	flag.IntVar(&conf.workers, "w", 100, "number of workers")
+	flag.IntVar(&conf.workers, "w", 0, "number of workers, <1 - make requests synchronously")
 	flag.Parse()
 
 	if _, ok := dataStructs[conf.data]; !ok {
 		log.Fatalf("expected %q, %q or %q as data structure but got %q",
 			mapDataStruct, tableDataStruct, memTableDataStruct, conf.data)
-	}
-
-	if conf.workers < 1 {
-		log.Fatalf("expected at least one worker but got %d", conf.workers)
 	}
 }

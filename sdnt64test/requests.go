@@ -18,31 +18,43 @@ func run(in []pair, m mapper64) {
 
 	start := time.Now()
 
-	wg := new(sync.WaitGroup)
-	wg.Add(conf.workers)
+	if conf.workers > 0 {
+		wg := new(sync.WaitGroup)
+		wg.Add(conf.workers)
 
-	for i := 0; i < conf.workers; i++ {
-		go func(wg *sync.WaitGroup, pIdx *uint64) {
-			defer wg.Done()
+		for i := 0; i < conf.workers; i++ {
+			go func(wg *sync.WaitGroup, pIdx *uint64) {
+				defer wg.Done()
 
-			for {
-				i := int(atomic.AddUint64(pIdx, 1) - 1)
-				if i >= count {
-					return
+				for {
+					i := int(atomic.AddUint64(pIdx, 1) - 1)
+					if i >= count {
+						return
+					}
+
+					p := in[i%len(in)]
+
+					report[i].start = time.Now()
+					if u := m.Map(p.k); u != p.v {
+						log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
+					}
+					report[i].end = time.Now()
 				}
+			}(wg, &idx)
+		}
 
-				p := in[i%len(in)]
+		wg.Wait()
+	} else {
+		for i := 0; i < count; i++ {
+			p := in[i%len(in)]
 
-				report[i].start = time.Now()
-				if u := m.Map(p.k); u != p.v {
-					log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
-				}
-				report[i].end = time.Now()
+			report[i].start = time.Now()
+			if u := m.Map(p.k); u != p.v {
+				log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
 			}
-		}(wg, &idx)
+			report[i].end = time.Now()
+		}
 	}
-
-	wg.Wait()
 
 	dur := time.Now().Sub(start)
 	dt := dur.Nanoseconds() / int64(count)
