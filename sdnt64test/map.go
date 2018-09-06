@@ -12,7 +12,12 @@ func newMap(in []pair) *dMap {
 	}
 
 	for i, p := range in {
-		out.m[p.k] = p.v
+		d, err := domainUppercase(p.k)
+		if err != nil {
+			log.Fatalf("can't make case insensitive domain from %q: %s", p.k, err)
+		}
+
+		out.m[d] = p.v
 
 		if (i+1)%1000000 == 0 {
 			log.Printf("inserted %d domains", i+1)
@@ -27,17 +32,21 @@ func newMap(in []pair) *dMap {
 }
 
 func (m *dMap) Map(k string) uint64 {
-	var err error
+	d, err := domainUppercase(k)
+	if err != nil {
+		log.Fatalf("can't make case insensitive domain from %q: %s", k, err)
+	}
+
 	for {
-		if v, ok := m.m[k]; ok {
+		if v, ok := m.m[d]; ok {
 			return v
 		}
 
-		if len(k) <= 0 {
+		if len(d) <= 0 {
 			break
 		}
 
-		k, err = dropLabel(k)
+		d, err = dropLabel(d)
 		if err != nil {
 			log.Fatalf("can't extract next level zone from %q: %s", k, err)
 		}
