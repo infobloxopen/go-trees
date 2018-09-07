@@ -244,7 +244,7 @@ func MakeNameFromSlice(s []int64) (Name, error) {
 	b := []byte{}
 	for len(s) > 0 {
 		n := int(s[0] & 0xf)
-		if n < 1 || n > 8 {
+		if n < 1 || n > 8 || n > len(s) {
 			return out, ErrInvalidLabelSize
 		}
 
