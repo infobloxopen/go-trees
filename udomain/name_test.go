@@ -152,6 +152,64 @@ func TestNameMakeNameFromStringWithEmptyLabel(t *testing.T) {
 	assert.Equal(t, ErrEmptyLabel, err, "name %q %08x", n, n.c)
 }
 
+func TestNameMakeNameFromSlice(t *testing.T) {
+	s := []int64{
+		//         W W W (4 bytes in incomplete dword and 1 dword for the label)
+		0x0000000057575741,
+		// E L P M A X E (0 bytes in incomplete dword and 1 dword for the label)
+		0x454c504d41584501,
+		//         M O C (4 bytes in incomplete dword and 1 dword for the label)
+		0x000000004d4f4341,
+	}
+
+	n, err := MakeNameFromSlice(s)
+	assert.NoError(t, err)
+	assert.Equal(t, s, n.c)
+	assert.Equal(t, "www.example.com", n.h)
+}
+
+func TestNameMakeNameFromSliceWithLongLabels(t *testing.T) {
+	s := []int64{
+	// O O O O O O L (0 bytes in incomplete dword and 3 dwords for the label)
+	0x4f4f4f4f4f4f4c03,
+	// O O O O O O O O,
+    0x4f4f4f4f4f4f4f4f,
+    // W W W - G N O O
+    0x5757572d474e4f4f,
+	// - G N O O O L (7 bytes in incomplete dword and 2 dwords for the label)
+	0x2d474e4f4f4f4c72,
+	//   E L P M A X E
+	0x00454c504d415845,
+	// O O O O O O L (6 bytes in incomplete dword and 2 dwords for the label)
+    0x4f4f4f4f4f4f4c62,
+	//     M O C - G N
+	0x00004d4f432d474e,
+	}
+
+	n, err := MakeNameFromSlice(s)
+	assert.NoError(t, err)
+	assert.Equal(t, s, n.c)
+	assert.Equal(t, "loooooooooooooooong-www.looong-example.loooooong-com", n.h)
+}
+
+func TestNameMakeNameFromSliceWithEscaping(t *testing.T) {
+	s := []int64{
+		//         W W W (4 bytes in incomplete dword and 1 dword for the label)
+		0x0000000057575741,
+		// L P M   A X E (1 bytes in incomplete dword and 2 dword for the label)
+		0x4c504d0941584512,
+		//               E,
+		0x0000000000000045,
+		//   ! ! ! M O C (7 bytes in incomplete dword and 1 dword for the label)
+		0x002121214d4f4371,
+	}
+
+	n, err := MakeNameFromSlice(s)
+	assert.NoError(t, err)
+	assert.Equal(t, s, n.c)
+	assert.Equal(t, "www.exa\\009mple.com\\!\\!\\!", n.h)
+}
+
 func TestNameString(t *testing.T) {
 	s := "example.com"
 	n, err := MakeNameFromString(s)

@@ -16,6 +16,10 @@ var (
 	ErrNameTooLong = errors.New("name too long")
 	// ErrInvalidEscape is returned for invalid escape sequence.
 	ErrInvalidEscape = errors.New("invalid escape sequence")
+	// ErrInvalidLabelSize
+	ErrInvalidLabelSize = errors.New("invalid label size")
+	// ErrInvalidCharacter
+	ErrInvalidCharacter = errors.New("invalid character")
 )
 
 // Name is a structure which represents domain name.
@@ -234,8 +238,61 @@ func MakeNameFromString(s string) (Name, error) {
 	return out, nil
 }
 
-func MakeNameFromSlice(s []int64) Name {
-	return Name{c: s}
+func MakeNameFromSlice(s []int64) (Name, error) {
+	out := Name{c: s}
+
+	b := []byte{}
+	for len(s) > 0 {
+		n := int(s[0] & 0xf)
+		if n < 1 || n > 8 {
+			return out, ErrInvalidLabelSize
+		}
+
+		j := 1
+		for i := 0; i < n; i++ {
+			m := 8
+			if i == n - 1 {
+				m = int(s[0] & 0xf0 >> 4)
+				if m == 0 {
+					m = 8
+				}
+
+				if m < 1 || m > 8 {
+					return out, ErrInvalidLabelSize
+				}
+			}
+
+			for j < m {
+				c := byte((s[i] >> uint(8*j)) & 0xff)
+				if c >= 'a' && c <= 'z' {
+					return out, ErrInvalidCharacter
+				}
+
+				if c == '-' || c == '_' || c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' {
+					if c >= 'A' && c <= 'Z' {
+						c |= 0x20
+					}
+					b = append(b, c)
+				} else if c >= '!' && c <= '~' {
+					b = append(b, '\\', c)
+				} else {
+					b = append(b, '\\', c/100+'0', c%100/10+'0', c%10+'0')
+				}
+				j++
+			}
+
+			j = 0
+		}
+
+		s = s[n:]
+		if len(s) > 0 {
+			b = append(b, '.')
+		}
+	}
+
+	out.h = string(b)
+
+	return out, nil
 }
 
 func (n Name) String() string {
