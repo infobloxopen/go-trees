@@ -35,6 +35,26 @@ func main() {
 
 	printAlloc("array")
 
+	var miss []string
+	if len(conf.miss) > 0 && conf.missPart > 0 {
+		log.Printf("loading missing domains from %q", conf.miss)
+		s, err := loadMissing(conf.miss)
+		if err != nil {
+			log.Fatalf("can't read domains from %q: %s", conf.miss, err)
+		}
+
+		miss = s
+		log.Printf("loaded %d domains from %q", len(miss), conf.miss)
+
+		count := len(miss)
+		if conf.reqs > 0 && conf.reqs < count {
+			count = conf.reqs
+		}
+		log.Printf("going to make %.02f requests from missing domains list", float64(count)*conf.missPart/100)
+	}
+
+	printAlloc("missing")
+
 	var (
 		m   mapper64
 		err error
@@ -66,7 +86,7 @@ func main() {
 		log.Printf("Map: %p", m)
 	}
 
-	run(pairs, m)
+	run(pairs, miss, m)
 
 	if conf.pause > 0 {
 		log.Printf("paused for %s before exit", conf.pause)

@@ -71,3 +71,53 @@ func load(path string, header func(n int) error, pair func(k string, v uint64) e
 
 	return nil
 }
+
+func loadMissing(path string) ([]string, error) {
+	var out []string
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	i := 0
+	for s.Scan() {
+		t := s.Text()
+		if out == nil {
+			v, err := strconv.ParseInt(t, 0, 32)
+			if err != nil {
+				return nil, fmt.Errorf("can't treat %q as number of domains: %s", t, err)
+			}
+
+			if v < 0 {
+				return nil, fmt.Errorf("negative number of lines: %d", v)
+			}
+
+			out = make([]string, int(v))
+		} else {
+			if i >= len(out) {
+				return nil, fmt.Errorf("got more lines %d than expected %d", i+1, len(out))
+			}
+
+			k, err := strconv.Unquote(t)
+			if err != nil {
+				return nil, fmt.Errorf("can't treat %q (%d) as quoted string: %s", t, i+1, err)
+			}
+
+			out[i] = k
+			i++
+		}
+	}
+
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+
+	if i != len(out) {
+		return nil, fmt.Errorf("expected %d domains but got %d", len(out), i)
+	}
+
+	return out, nil
+}

@@ -2,12 +2,13 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-func run(in []pair, m mapper64) {
+func run(in []pair, miss []string, m mapper64) {
 	count := len(in)
 	if conf.reqs > 0 && conf.reqs < count {
 		count = conf.reqs
@@ -32,13 +33,21 @@ func run(in []pair, m mapper64) {
 						return
 					}
 
-					p := in[i%len(in)]
+					if len(miss) < 0 || rand.Float64()*100 >= conf.missPart {
+						p := in[i%len(in)]
 
-					report[i].start = time.Now()
-					if u := m.Map(p.k); u != p.v {
-						log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
+						report[i].start = time.Now()
+						if u := m.Map(p.k); u != p.v {
+							log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
+						}
+						report[i].end = time.Now()
+					} else {
+						k := miss[i%len(miss)]
+
+						report[i].start = time.Now()
+						m.Map(k)
+						report[i].end = time.Now()
 					}
-					report[i].end = time.Now()
 				}
 			}(wg, &idx)
 		}
@@ -46,13 +55,21 @@ func run(in []pair, m mapper64) {
 		wg.Wait()
 	} else {
 		for i := 0; i < count; i++ {
-			p := in[i%len(in)]
+			if len(miss) < 0 || rand.Float64()*100 >= conf.missPart {
+				p := in[i%len(in)]
 
-			report[i].start = time.Now()
-			if u := m.Map(p.k); u != p.v {
-				log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
+				report[i].start = time.Now()
+				if u := m.Map(p.k); u != p.v {
+					log.Fatalf("invalid result for %q (%d): %x != %x", p.k, i+1, u, p.v)
+				}
+				report[i].end = time.Now()
+			} else {
+				k := miss[i%len(miss)]
+
+				report[i].start = time.Now()
+				m.Map(k)
+				report[i].end = time.Now()
 			}
-			report[i].end = time.Now()
 		}
 	}
 

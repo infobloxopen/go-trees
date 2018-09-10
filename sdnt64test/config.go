@@ -8,11 +8,13 @@ import (
 )
 
 type config struct {
-	path    string
-	data    string
-	pause   time.Duration
-	reqs    int
-	workers int
+	path     string
+	miss     string
+	missPart float64
+	data     string
+	pause    time.Duration
+	reqs     int
+	workers  int
 }
 
 var conf config
@@ -31,6 +33,8 @@ var dataStructs = map[string]struct{}{
 
 func init() {
 	flag.StringVar(&conf.path, "d", "domains.lst", "thread feed categories by domains")
+	flag.StringVar(&conf.miss, "m", "", "domains to test missing keys")
+	flag.Float64Var(&conf.missPart, "miss-part", 50, "percent of missing requeests")
 	flag.StringVar(&conf.data, "s", mapDataStruct,
 		fmt.Sprintf("data structure to test "+
 			"%q - map[string]uint64, "+
