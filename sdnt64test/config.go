@@ -15,6 +15,7 @@ type config struct {
 	pause    time.Duration
 	reqs     int
 	workers  int
+	memProf  string
 }
 
 var conf config
@@ -44,6 +45,7 @@ func init() {
 	flag.DurationVar(&conf.pause, "p", 0, "pause before exit")
 	flag.IntVar(&conf.reqs, "n", -1, "number of domains to request, <0 - request all domains")
 	flag.IntVar(&conf.workers, "w", 0, "number of workers, <1 - make requests synchronously")
+	flag.StringVar(&conf.memProf, "mem-prof", "", "path to write memory profile")
 	flag.Parse()
 
 	if _, ok := dataStructs[conf.data]; !ok {

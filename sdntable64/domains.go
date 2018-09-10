@@ -177,7 +177,7 @@ func (d domains) merge(log func(size, from, to int)) (domains, *Getter, error) {
 			defer c.Close()
 		}
 
-		data, err := d.data.merge(r, w)
+		filter, data, err := d.data.merge(r, w)
 		if err != nil {
 			return d, getter, err
 		}
@@ -192,7 +192,7 @@ func (d domains) merge(log func(size, from, to int)) (domains, *Getter, error) {
 			return d, getter, err
 		}
 
-		g := newGetter(path, m, w.blks, w.rem, log)
+		g := newGetter(path, m, w.blks, w.rem, filter, log)
 		err = g.start()
 		if err != nil {
 			return d, getter, err

@@ -86,6 +86,12 @@ func main() {
 		log.Printf("Map: %p", m)
 	}
 
+	if len(conf.memProf) > 0 {
+		if err := dumpMemProf(); err != nil {
+			log.Fatalf("can't dump memory profile to %q: %s", conf.memProf, err)
+		}
+	}
+
 	run(pairs, miss, m)
 
 	if conf.pause > 0 {

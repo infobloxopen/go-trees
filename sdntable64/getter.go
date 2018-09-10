@@ -1,29 +1,33 @@
 package sdntable64
 
 import (
+	"encoding/binary"
 	"io"
 	"math"
 	"os"
 	"sync"
 	"syscall"
+
+	"github.com/willf/bloom"
 )
 
 type Getter struct {
-	path  string
-	f     io.Closer
-	m     int
-	blk   int
-	blks  int
-	rem   int
-	bSize int64
-	ch    chan getRequest
-	done  chan struct{}
-	wg    *sync.WaitGroup
-	pool  chan chan getResponse
-	log   func(size, from, to int)
+	path   string
+	f      io.Closer
+	filter *bloom.BloomFilter
+	m      int
+	blk    int
+	blks   int
+	rem    int
+	bSize  int64
+	ch     chan getRequest
+	done   chan struct{}
+	wg     *sync.WaitGroup
+	pool   chan chan getResponse
+	log    func(size, from, to int)
 }
 
-func newGetter(path string, m, blks, rem int, log func(size, from, to int)) *Getter {
+func newGetter(path string, m, blks, rem int, filter *bloom.BloomFilter, log func(size, from, to int)) *Getter {
 	blk := blocks[m-1]
 	pool := make(chan chan getResponse, 128)
 	for len(pool) < cap(pool) {
@@ -31,17 +35,18 @@ func newGetter(path string, m, blks, rem int, log func(size, from, to int)) *Get
 	}
 
 	return &Getter{
-		path:  path,
-		m:     m,
-		blk:   blk,
-		blks:  blks,
-		rem:   rem,
-		bSize: int64(blk) * 8 * (int64(m) + 1),
-		ch:    make(chan getRequest),
-		done:  make(chan struct{}),
-		wg:    new(sync.WaitGroup),
-		pool:  pool,
-		log:   log,
+		path:   path,
+		filter: filter,
+		m:      m,
+		blk:    blk,
+		blks:   blks,
+		rem:    rem,
+		bSize:  int64(blk) * 8 * (int64(m) + 1),
+		ch:     make(chan getRequest),
+		done:   make(chan struct{}),
+		wg:     new(sync.WaitGroup),
+		pool:   pool,
+		log:    log,
 	}
 }
 
@@ -161,6 +166,14 @@ type getRequest struct {
 }
 
 func (g *Getter) get(k []int64, start, end uint32) (uint64, error) {
+	b := make([]byte, 8*len(k))
+	for i, n := range k {
+		binary.LittleEndian.PutUint64(b[8*i:], uint64(n))
+	}
+	if g.filter != nil && !g.filter.Test(b) {
+		return 0, nil
+	}
+
 	ch := <-g.pool
 	defer func() {
 		g.pool <- ch

@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"runtime"
+	"runtime/pprof"
 )
 
 func printAlloc(desc string) {
@@ -37,4 +39,16 @@ func makeSize(s uint64) string {
 
 	f /= 1024
 	return fmt.Sprintf("%.02f TB", f)
+}
+
+func dumpMemProf() error {
+	f, err := os.Create(conf.memProf)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	runtime.GC()
+
+	return pprof.WriteHeapProfile(f)
 }

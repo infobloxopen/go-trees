@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/willf/bloom"
 )
 
 type run struct {
@@ -385,17 +387,30 @@ func (r run) write(f io.Writer) error {
 	return nil
 }
 
-func (r run) merge(in *rRun, out *wRun) (run, error) {
+func (r run) merge(in *rRun, out *wRun) (*bloom.BloomFilter, run, error) {
 	n := len(r.v)
 	m := len(r.k) / n
 	idx := make([]uint32, n)
+
+	est := uint(n)
+	if len(r.i) > 0 {
+		for i := len(r.i) - 1; i >= 0; i-- {
+			if r.i[i] < math.MaxUint32 {
+				est += uint(r.i[i])
+				break
+			}
+		}
+	}
+
+	fBuf := make([]byte, 8*m)
+	filter := bloom.NewWithEstimates(est, 0.03)
 
 	mK := r.k
 	i := 0
 
 	sK, sV, err := in.next()
 	if err != nil {
-		return r, err
+		return nil, r, err
 	}
 
 	var (
@@ -414,14 +429,19 @@ func (r run) merge(in *rRun, out *wRun) (run, error) {
 		if d <= 0 {
 			if r.v[i] != 0 {
 				if err := out.put(mK[:m], r.v[i]); err != nil {
-					return r, err
+					return nil, r, err
 				}
+
+				for i, n := range mK[:m] {
+					binary.LittleEndian.PutUint64(fBuf[8*i:], uint64(n))
+				}
+				filter.Add(fBuf)
 
 				idx[i-z] = c
 
 				c++
 				if c >= math.MaxUint32 {
-					return r, fmt.Errorf("run %d overflow", m)
+					return nil, r, fmt.Errorf("run %d overflow", m)
 				}
 			} else {
 				z++
@@ -431,25 +451,30 @@ func (r run) merge(in *rRun, out *wRun) (run, error) {
 			mK = mK[m:]
 		} else {
 			if err := out.put(sK, sV); err != nil {
-				return r, err
+				return nil, r, err
 			}
+
+			for i, n := range sK {
+				binary.LittleEndian.PutUint64(fBuf[8*i:], uint64(n))
+			}
+			filter.Add(fBuf)
 
 			c++
 			if c >= math.MaxUint32 {
-				return r, fmt.Errorf("run %d overflow", m)
+				return nil, r, fmt.Errorf("run %d overflow", m)
 			}
 		}
 
 		if d >= 0 {
 			sK, sV, err = in.next()
 			if err != nil {
-				return r, err
+				return nil, r, err
 			}
 		}
 	}
 
 	if err := out.flush(); err != nil {
-		return r, err
+		return nil, r, err
 	}
 
 	if z > 0 {
@@ -473,7 +498,7 @@ func (r run) merge(in *rRun, out *wRun) (run, error) {
 	}
 
 	r.i = idx[:n-z]
-	return r, nil
+	return filter, r, nil
 }
 
 func (r run) drop90() run {
