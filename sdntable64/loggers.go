@@ -3,7 +3,7 @@ package sdntable64
 type loggers struct {
 	normalize normalizeLoggers
 	flush     flushLoggers
-	read      func(size, from, to int)
+	read      func(size, from, to, reqs, queue int)
 }
 
 type normalizeLoggers struct {

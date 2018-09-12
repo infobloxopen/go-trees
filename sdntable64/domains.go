@@ -81,7 +81,7 @@ func (d domains) normalize(log normalizeLoggers) domains {
 	return d
 }
 
-func (d domains) get(k []int64, read func(size, from, to int)) uint64 {
+func (d domains) get(k []int64) uint64 {
 	if !d.ready {
 		panic(fmt.Errorf("run is not ready for get %d", len(k)))
 	}
@@ -107,7 +107,7 @@ func (d domains) size90() int {
 	return d.data.size90()
 }
 
-func (d domains) flush(fLog flushLoggers, rLog func(size, from, to int), nLog normalizeLoggers) (domains, *Getter) {
+func (d domains) flush(fLog flushLoggers, rLog func(size, from, to, reqs, queue int), nLog normalizeLoggers) (domains, *Getter) {
 	var getter *Getter
 
 	if d.dir == nil {
@@ -143,7 +143,7 @@ func (d domains) flush(fLog flushLoggers, rLog func(size, from, to int), nLog no
 	return d, getter
 }
 
-func (d domains) merge(log func(size, from, to int)) (domains, *Getter, error) {
+func (d domains) merge(log func(size, from, to, reqs, queue int)) (domains, *Getter, error) {
 	var getter *Getter
 
 	n := len(d.data.v)

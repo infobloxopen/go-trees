@@ -16,6 +16,7 @@ type config struct {
 	reqs     int
 	workers  int
 	memProf  string
+	rand     bool
 }
 
 var conf config
@@ -46,6 +47,7 @@ func init() {
 	flag.IntVar(&conf.reqs, "n", -1, "number of domains to request, <0 - request all domains")
 	flag.IntVar(&conf.workers, "w", 0, "number of workers, <1 - make requests synchronously")
 	flag.StringVar(&conf.memProf, "mem-prof", "", "path to write memory profile")
+	flag.BoolVar(&conf.rand, "rand", false, "request domains randomly (default - sequentially)")
 	flag.Parse()
 
 	if _, ok := dataStructs[conf.data]; !ok {

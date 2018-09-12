@@ -14,7 +14,7 @@ type table struct {
 	t *sdntable64.Table64
 }
 
-func newTable(in []pair, dir string) (mapper64, error) {
+func newTable(in []pair, dir string, reqsStat *[]reqStat) (mapper64, error) {
 	opts := []sdntable64.Option{
 		sdntable64.WithNormalizeLoggers(func(i, j int) {
 			log.Printf("normalizing %d subarray with %d domains", i, j)
@@ -28,6 +28,17 @@ func newTable(in []pair, dir string) (mapper64, error) {
 		}, func(i, j, k int) {
 			log.Printf("flushed %d subarray (%d -> %d)", i, j, k)
 		}),
+	}
+
+	if reqsStat != nil && *reqsStat != nil {
+		opts = append(opts,
+			sdntable64.WithReadLogger(func(size, from, to, reqs, queue int) {
+				*reqsStat = append(*reqsStat, reqStat{
+					reqs:  reqs,
+					queue: queue,
+				})
+			}),
+		)
 	}
 
 	if len(dir) > 0 {

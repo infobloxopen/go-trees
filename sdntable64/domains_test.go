@@ -379,8 +379,8 @@ func TestDomainsGet(t *testing.T) {
 	}
 	ds = ds.normalize(noLogs)
 
-	assert.Equal(t, uint64(0), ds.get(makeDomainNameFromString("--.example.com").GetComparable(), nil))
-	assert.Equal(t, uint64(1<<15), ds.get(makeDomainNameFromString("15.example.com").GetComparable(), nil))
+	assert.Equal(t, uint64(0), ds.get(makeDomainNameFromString("--.example.com").GetComparable()))
+	assert.Equal(t, uint64(1<<15), ds.get(makeDomainNameFromString("15.example.com").GetComparable()))
 
 	for i := 30; i < 32; i++ {
 		d := makeDomainNameFromString(fmt.Sprintf("%02d.example.com", i))
@@ -394,7 +394,7 @@ func TestDomainsGet(t *testing.T) {
 		assert.NoError(t, g.Stop())
 	}
 
-	assert.Equal(t, uint64(1<<19), ds.get(makeDomainNameFromString("19.example.com").GetComparable(), nil))
+	assert.Equal(t, uint64(1<<19), ds.get(makeDomainNameFromString("19.example.com").GetComparable()))
 }
 
 func TestDomainsRemoveOnMerge(t *testing.T) {

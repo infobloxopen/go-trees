@@ -46,23 +46,30 @@ func main() {
 		miss = s
 		log.Printf("loaded %d domains from %q", len(miss), conf.miss)
 
-		count := len(miss)
-		if conf.reqs > 0 && conf.reqs < count {
+		count := len(pairs)
+		if conf.reqs > 0 {
 			count = conf.reqs
 		}
 		log.Printf("going to make %.02f requests from missing domains list", float64(count)*conf.missPart/100)
+
+		printAlloc("missing")
 	}
 
-	printAlloc("missing")
-
 	var (
-		m   mapper64
-		err error
+		m        mapper64
+		err      error
+		reqsStat []reqStat
 	)
 
 	switch conf.data {
 	default:
-		m, err = newTable(pairs, "sdntable64")
+		count := len(pairs)
+		if conf.reqs > 0 {
+			count = conf.reqs
+		}
+		reqsStat = make([]reqStat, 0, count)
+
+		m, err = newTable(pairs, "sdntable64", &reqsStat)
 		if err != nil {
 			log.Fatalf("can't fill table: %s", err)
 		}
@@ -71,7 +78,7 @@ func main() {
 		log.Printf("Table: %p", m)
 
 	case memTableDataStruct:
-		m, err = newTable(pairs, "")
+		m, err = newTable(pairs, "", nil)
 		if err != nil {
 			log.Fatalf("can't fill table: %s", err)
 		}
@@ -94,8 +101,29 @@ func main() {
 
 	run(pairs, miss, m)
 
+	if len(reqsStat) > 0 {
+		var (
+			reqs  float64
+			queue float64
+		)
+		for _, r := range reqsStat {
+			reqs += float64(r.reqs)
+			queue += float64(r.queue)
+		}
+		n := float64(len(reqsStat))
+
+		log.Printf("Request read statistics avg. read %.02f, avg. queue: %.02f", reqs/n, queue/n)
+	}
+
+	printAlloc("final")
+
 	if conf.pause > 0 {
 		log.Printf("paused for %s before exit", conf.pause)
 		time.Sleep(conf.pause)
 	}
+}
+
+type reqStat struct {
+	reqs  int
+	queue int
 }

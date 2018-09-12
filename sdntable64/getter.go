@@ -7,7 +7,9 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 
+	"github.com/hashicorp/golang-lru"
 	"github.com/willf/bloom"
 )
 
@@ -24,10 +26,11 @@ type Getter struct {
 	done   chan struct{}
 	wg     *sync.WaitGroup
 	pool   chan chan getResponse
-	log    func(size, from, to int)
+	cache  *lru.Cache
+	log    func(size, from, to, reqs, queue int)
 }
 
-func newGetter(path string, m, blks, rem int, filter *bloom.BloomFilter, log func(size, from, to int)) *Getter {
+func newGetter(path string, m, blks, rem int, filter *bloom.BloomFilter, log func(size, from, to, reqs, queue int)) *Getter {
 	blk := blocks[m-1]
 	pool := make(chan chan getResponse, 128)
 	for len(pool) < cap(pool) {
@@ -58,34 +61,101 @@ func (g *Getter) start() error {
 
 	g.f = f
 
-	tmp := run{
-		k: []int64{},
-		v: []uint64{},
-	}
-
 	buf := run{
 		k: make([]int64, g.m*g.blk),
 		v: make([]uint64, g.blk),
 	}
 
+	queue := map[uint64][]getRequest{}
+
+	rPool := sync.Pool{
+		New: func() interface{} {
+			return run{
+				k: make([]int64, 0, g.m*g.blk),
+				v: make([]uint64, g.blk),
+			}
+		},
+	}
+	cache, err := lru.NewWithEvict(500, func(k, v interface{}) {
+		rPool.Put(v)
+	})
+	if err != nil {
+		return err
+	}
+	g.cache = cache
+
 	g.wg.Add(1)
 	go func(wg *sync.WaitGroup, ch chan getRequest, done chan struct{}) {
-		defer wg.Done()
+		iwg := new(sync.WaitGroup)
+		defer func() {
+			iwg.Wait()
+			wg.Done()
+		}()
+
+		t := time.NewTicker(100 * time.Microsecond)
 
 		for {
 			select {
 			case <-done:
+				t.Stop()
 				return
 
-			case r := <-ch:
-				tmp, err := g.read(f, r.start, r.end, tmp, buf, g.log)
-				if err != nil {
-					r.ch <- getResponse{err: err}
-					break
+			case <-t.C:
+				var (
+					maxQ []getRequest
+					maxK uint64
+				)
+
+				for k, q := range queue {
+					if len(q) > len(maxQ) {
+						maxQ = q
+						maxK = k
+					}
 				}
 
-				u, _, _ := tmp.get(r.k)
-				r.ch <- getResponse{value: u}
+				if len(maxQ) > 0 {
+					iwg.Wait()
+
+					delete(queue, maxK)
+
+					iwg.Add(1)
+					go func(wg *sync.WaitGroup, k uint64, q []getRequest, lenQ int) {
+						defer wg.Done()
+
+						r := q[0]
+
+						if g.log != nil {
+							g.log(len(r.k), int(r.start), int(r.end), len(q), lenQ)
+						}
+
+						tmp, err := g.read(f, r.start, r.end, rPool.Get().(run), buf, nil)
+						if err != nil {
+							for _, r := range q {
+								r.ch <- getResponse{err: err}
+							}
+
+							return
+						}
+
+						g.cache.Add(k, tmp)
+
+						for _, r := range q {
+							u, _, _ := tmp.get(r.k)
+							r.ch <- getResponse{value: u}
+						}
+
+					}(iwg, maxK, maxQ, len(queue))
+				}
+
+			case r := <-ch:
+				k := (uint64(r.start) << 32) | uint64(r.end)
+				q, ok := queue[k]
+				if !ok {
+					q = []getRequest{r}
+				} else {
+					q = append(q, r)
+				}
+				queue[k] = q
 			}
 		}
 	}(g.wg, g.ch, g.done)
@@ -172,6 +242,13 @@ func (g *Getter) get(k []int64, start, end uint32) (uint64, error) {
 	}
 	if g.filter != nil && !g.filter.Test(b) {
 		return 0, nil
+	}
+
+	idx := (uint64(start) << 32) | uint64(end)
+	if tmp, ok := g.cache.Get(idx); ok {
+		if u, _, _ := tmp.(run).get(k); u != 0 {
+			return u, nil
+		}
 	}
 
 	ch := <-g.pool

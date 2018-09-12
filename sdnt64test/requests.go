@@ -10,12 +10,16 @@ import (
 
 func run(in []pair, miss []string, m mapper64) {
 	count := len(in)
-	if conf.reqs > 0 && conf.reqs < count {
+	if conf.reqs > 0 {
 		count = conf.reqs
 	}
 	report := makeReport(count)
 
-	var idx uint64
+	var (
+		idx  uint64
+		dIdx uint64
+		mIdx uint64
+	)
 
 	start := time.Now()
 
@@ -24,7 +28,7 @@ func run(in []pair, miss []string, m mapper64) {
 		wg.Add(conf.workers)
 
 		for i := 0; i < conf.workers; i++ {
-			go func(wg *sync.WaitGroup, pIdx *uint64) {
+			go func(wg *sync.WaitGroup, pIdx, pDIdx, pMIdx *uint64) {
 				defer wg.Done()
 
 				for {
@@ -34,7 +38,13 @@ func run(in []pair, miss []string, m mapper64) {
 					}
 
 					if len(miss) < 0 || rand.Float64()*100 >= conf.missPart {
-						p := in[i%len(in)]
+						j := 0
+						if conf.rand {
+							j = rand.Intn(len(in))
+						} else {
+							j = int(atomic.AddUint64(pDIdx, 1) - 1)
+						}
+						p := in[j%len(in)]
 
 						report[i].start = time.Now()
 						if u := m.Map(p.k); u != p.v {
@@ -42,21 +52,34 @@ func run(in []pair, miss []string, m mapper64) {
 						}
 						report[i].end = time.Now()
 					} else {
-						k := miss[i%len(miss)]
+						j := 0
+						if conf.rand {
+							j = rand.Intn(len(miss))
+						} else {
+							j = int(atomic.AddUint64(pMIdx, 1) - 1)
+						}
+						k := miss[j%len(miss)]
 
 						report[i].start = time.Now()
 						m.Map(k)
 						report[i].end = time.Now()
 					}
 				}
-			}(wg, &idx)
+			}(wg, &idx, &dIdx, &mIdx)
 		}
 
 		wg.Wait()
 	} else {
 		for i := 0; i < count; i++ {
 			if len(miss) < 0 || rand.Float64()*100 >= conf.missPart {
-				p := in[i%len(in)]
+				j := 0
+				if conf.rand {
+					j = rand.Intn(len(in))
+				} else {
+					dIdx++
+					j = int(dIdx - 1)
+				}
+				p := in[j%len(in)]
 
 				report[i].start = time.Now()
 				if u := m.Map(p.k); u != p.v {
@@ -64,7 +87,14 @@ func run(in []pair, miss []string, m mapper64) {
 				}
 				report[i].end = time.Now()
 			} else {
-				k := miss[i%len(miss)]
+				j := 0
+				if conf.rand {
+					j = rand.Intn(len(miss))
+				} else {
+					mIdx++
+					j = int(mIdx - 1)
+				}
+				k := miss[j%len(miss)]
 
 				report[i].start = time.Now()
 				m.Map(k)

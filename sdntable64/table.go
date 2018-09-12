@@ -192,7 +192,7 @@ func (t *Table64) Get(k domain.Name) uint64 {
 	}
 
 	for len(c) > 0 {
-		if v := t.body[len(c)-1].get(c, t.opts.log.read); v != 0 {
+		if v := t.body[len(c)-1].get(c); v != 0 {
 			return v
 		}
 

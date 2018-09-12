@@ -29,7 +29,7 @@ func WithFlushLoggers(before, after func(size, from, to int)) Option {
 	}
 }
 
-func WithReadLogger(log func(size, from, to int)) Option {
+func WithReadLogger(log func(size, from, to, reqs, queue int)) Option {
 	return func(o *options) {
 		o.log.read = log
 	}
