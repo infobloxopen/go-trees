@@ -37,7 +37,7 @@ func run(in []pair, miss []string, m mapper64) {
 						return
 					}
 
-					if len(miss) < 0 || rand.Float64()*100 >= conf.missPart {
+					if len(miss) <= 0 || rand.Float64()*100 >= conf.missPart {
 						j := 0
 						if conf.rand {
 							j = rand.Intn(len(in))
@@ -71,7 +71,7 @@ func run(in []pair, miss []string, m mapper64) {
 		wg.Wait()
 	} else {
 		for i := 0; i < count; i++ {
-			if len(miss) < 0 || rand.Float64()*100 >= conf.missPart {
+			if len(miss) <= 0 || rand.Float64()*100 >= conf.missPart {
 				j := 0
 				if conf.rand {
 					j = rand.Intn(len(in))
