@@ -48,6 +48,10 @@ const (
 )
 
 func MakeNameFromString(s string) (Name, error) {
+	return MakeNameFromStringWithBuffer(s, make([]int64, 0, MaxLabels))
+}
+
+func MakeNameFromStringWithBuffer(s string, buf []int64) (Name, error) {
 	out := Name{h: s}
 	if len(s) <= 0 || s == "." {
 		return out, nil
@@ -57,12 +61,10 @@ func MakeNameFromString(s string) (Name, error) {
 		fragment [uInt64Size]byte
 		zeros    [uInt64Size]byte
 		label    [(MaxLabel + 1) / uInt64Size]int64
-		name     [MaxLabels]int64
 	)
 
 	n := 0
 	j := 1
-	k := 0
 	count := 1
 	esc := escRegular
 	code := 0
@@ -115,9 +117,8 @@ func MakeNameFromString(s string) (Name, error) {
 				j = 1
 				count++
 
-				copy(name[k:], label[:n])
+				buf = append(buf, label[:n]...)
 				out.n++
-				k += n
 
 				n = 0
 				fragment[0] = 0
@@ -229,12 +230,11 @@ func MakeNameFromString(s string) (Name, error) {
 
 		label[0] = int64(uint64(label[0]) | uint64(n) | uint64(j<<4))
 
-		copy(name[k:], label[:n])
+		buf = append(buf, label[:n]...)
 		out.n++
-		k += n
 	}
 
-	out.c = name[:k]
+	out.c = buf
 	return out, nil
 }
 
@@ -251,13 +251,13 @@ func MakeNameFromSlice(s []int64) (Name, error) {
 		j := 1
 		for i := 0; i < n; i++ {
 			m := 8
-			if i == n - 1 {
+			if i == n-1 {
 				m = int(s[0] & 0xf0 >> 4)
-				if m == 0 {
+				if m <= 0 {
 					m = 8
 				}
 
-				if m < 1 || m > 8 {
+				if m > 8 {
 					return out, ErrInvalidLabelSize
 				}
 			}
@@ -301,9 +301,11 @@ func (n Name) String() string {
 
 func (n Name) DropFirstLabel() Name {
 	if n.n > 1 && len(n.c) > 0 {
-		return Name{
-			n: n.n - 1,
-			c: n.c[n.c[0]&7:],
+		if i := n.c[0] & 7; int(i) <= len(n.c) {
+			return Name{
+				n: n.n - 1,
+				c: n.c[i:],
+			}
 		}
 	}
 

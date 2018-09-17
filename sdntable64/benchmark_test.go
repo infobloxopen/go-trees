@@ -55,6 +55,22 @@ func BenchmarkTable64GetWithConversion(b *testing.B) {
 	}
 }
 
+func BenchmarkTable64GetWithBufferedConversion(b *testing.B) {
+	buf := make([]int64, 0, domain.MaxLabels)
+	for n := 0; n < b.N; n++ {
+		i := n & 1023
+		s := strs[i]
+		name, err := domain.MakeNameFromStringWithBuffer(s, buf)
+		if err != nil {
+			b.Fatalf("can't convert %q at %d (%d) to name: %s", s, n, i, err)
+		}
+
+		if v := table.Get(name); v != 1 {
+			b.Fatalf("expected %d for %q (%q) at %d (%d) but got %d", 1, strs[i], name, n, i, v)
+		}
+	}
+}
+
 var strs = []string{
 	"wjgsapgatlmody.umguqdiw.mnppqimge",
 	"gkbnptniwdyjdh.oya",
