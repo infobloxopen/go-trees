@@ -120,6 +120,7 @@ func TestGet(t *testing.T) {
 	r = r.Insert(makeTestDN(t, "test.net"), 3)
 	r = r.Insert(makeTestDN(t, "example.com"), 4)
 	r = r.Insert(makeTestDN(t, "www.test.com"), 5)
+	r = r.Insert(makeTestDN(t, "yet.another.test.com"), 6)
 
 	v, ok = r.Get(makeTestDN(t, "test.com"))
 	assertValue(v, ok, 2, true, "fetching \"test.com\" from tree", t)
@@ -135,6 +136,12 @@ func TestGet(t *testing.T) {
 
 	v, ok = r.Get(makeTestDN(t, "nS.tEsT.cOm"))
 	assertValue(v, ok, 2, true, "fetching \"nS.tEsT.cOm\" from tree", t)
+
+	v, ok = r.Get(makeTestDN(t, "another.test.com"))
+	assertValue(v, ok, 2, true, "fetching \"another.test.com\" from tree", t)
+
+	v, ok = r.Get(makeTestDN(t, "yet.another.test.com"))
+	assertValue(v, ok, 6, true, "fetching \"yet.another.test.com\" from tree", t)
 }
 
 func TestDeleteSubdomains(t *testing.T) {
