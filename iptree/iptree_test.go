@@ -163,6 +163,64 @@ func TestEnumerate(t *testing.T) {
 	}
 }
 
+func TestEnumerateToLevel(t *testing.T) {
+	var r *Tree
+	var n *net.IPNet
+
+	for p := range r.Enumerate() {
+		t.Errorf("Expected no nodes in empty tree but got at least one: %s", p)
+		break
+	}
+
+	r = NewTree()
+
+	_, n, _ = net.ParseCIDR("192.0.2.0/30")
+	r = r.InsertNet(n, "test 1.2")
+
+	_, n, _ = net.ParseCIDR("192.0.2.0/32")
+	r = r.InsertNet(n, "test 1.3")
+
+	_, n, _ = net.ParseCIDR("2001:db8::/32")
+	r = r.InsertNet(n, "test 2.1")
+
+	_, n, _ = net.ParseCIDR("192.0.2.0/24")
+	r = r.InsertNet(n, "test 1")
+
+	_, n, _ = net.ParseCIDR("2001:db8:1::/48")
+	r = r.InsertNet(n, "test 2.2")
+
+	_, n, _ = net.ParseCIDR("2001:db8:0:0:0:ff::/96")
+	r = r.InsertNet(n, "test 3")
+
+	_, n, _ = net.ParseCIDR("192.0.2.0/28")
+	r = r.InsertNet(n, "test 1.1")
+
+	items := []string{}
+	for p := range r.EnumerateToLevel(0) {
+		items = append(items, p.String())
+	}
+
+	s := strings.Join(items, ", ")
+	e := "192.0.2.0/24: \"test 1\", " +
+		"2001:db8::/32: \"test 2.1\""
+	if s != e {
+		t.Errorf("Expected following nodes %q but got %q", e, s)
+	}
+
+	items = []string{}
+	for p := range r.EnumerateToLevel(1) {
+		items = append(items, p.String())
+	}
+
+	s = strings.Join(items, ", ")
+	e = "192.0.2.0/24: \"test 1\", " +
+		"192.0.2.0/28: \"test 1.1\", " +
+		"2001:db8::/32: \"test 2.1\""
+	if s != e {
+		t.Errorf("Expected following nodes %q but got %q", e, s)
+	}
+}
+
 func TestGetByNet(t *testing.T) {
 	r := NewTree()
 

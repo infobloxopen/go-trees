@@ -187,6 +187,24 @@ func TestEnumerate64(t *testing.T) {
 		"0xabaaaaaa00000000/9: \"L2.2\"")
 }
 
+func TestEnumerate64ToLevel(t *testing.T) {
+	var r *Node64
+
+	ch := r.Enumerate()
+	assertSequence64(ch, t, "64-tree empty tree")
+
+	r = r.Insert(0xAAAAAAAA00000000, 7, "L1")
+	r = r.Insert(0xA8AAAAAA00000000, 9, "L2.1")
+	r = r.Insert(0xABAAAAAA00000000, 9, "L2.2")
+	r = r.Insert(0xAAAAAAAA00000000, 18, "L3")
+	r = r.Insert(0xAAABAAAA00000000, 24, "L5")
+	r = r.Insert(0xAABAAAAA00000000, 19, "L4")
+	ch = r.EnumerateToLevel(1)
+	assertSequence64(ch, t, "64-tree for enumeration",
+		"0xa8aaaaaa00000000/9: \"L2.1\"",
+		"0xaaaaaaaa00000000/7: \"L1\"")
+}
+
 func TestMatch64(t *testing.T) {
 	var r *Node64
 

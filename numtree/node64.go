@@ -105,6 +105,23 @@ func (n *Node64) Enumerate() chan *Node64 {
 	return ch
 }
 
+// Enumerate returns channel which is populated by nodes in order of their keys (down to the target level only).
+func (n *Node64) EnumerateToLevel(targetLevel int) chan *Node64 {
+	ch := make(chan *Node64)
+
+	go func() {
+		defer close(ch)
+
+		if n == nil {
+			return
+		}
+
+		n.enumerateToLevel(0, targetLevel, ch)
+	}()
+
+	return ch
+}
+
 // Match locates node which key is equal to or "contains" the key passed as argument.
 func (n *Node64) Match(key uint64, bits int) (interface{}, bool) {
 	if n == nil {
@@ -273,6 +290,24 @@ func (n *Node64) enumerate(ch chan *Node64) {
 
 	if n.chld[1] != nil {
 		n.chld[1].enumerate(ch)
+	}
+}
+
+func (n *Node64) enumerateToLevel(level, targetLevel int, ch chan *Node64) {
+	if n.Leaf {
+		ch <- n
+	}
+
+	if level == targetLevel {
+		return
+	}
+
+	if n.chld[0] != nil {
+		n.chld[0].enumerateToLevel(level+1, targetLevel, ch)
+	}
+
+	if n.chld[1] != nil {
+		n.chld[1].enumerateToLevel(level+1, targetLevel, ch)
 	}
 }
 

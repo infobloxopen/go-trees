@@ -187,6 +187,24 @@ func TestEnumerate32(t *testing.T) {
 		"0xabaaaaaa/9: \"L2.2\"")
 }
 
+func TestEnumerate32ToLevel(t *testing.T) {
+	var r *Node32
+
+	ch := r.Enumerate()
+	assertSequence32(ch, t, "32-tree empty tree")
+
+	r = r.Insert(0xAAAAAAAA, 7, "L1")
+	r = r.Insert(0xA8AAAAAA, 9, "L2.1")
+	r = r.Insert(0xABAAAAAA, 9, "L2.2")
+	r = r.Insert(0xAAAAAAAA, 18, "L3")
+	r = r.Insert(0xAAABAAAA, 24, "L5")
+	r = r.Insert(0xAABAAAAA, 19, "L4")
+	ch = r.EnumerateToLevel(1)
+	assertSequence32(ch, t, "32-tree for enumeration",
+		"0xa8aaaaaa/9: \"L2.1\"",
+		"0xaaaaaaaa/7: \"L1\"")
+}
+
 func TestMatch32(t *testing.T) {
 	var r *Node32
 
@@ -348,6 +366,7 @@ func assertTree32(r *Node32, e, desc string, t *testing.T) {
 }
 
 func assertSequence32(ch chan *Node32, t *testing.T, desc string, e ...string) {
+	t.Helper()
 	items := []string{}
 	for n := range ch {
 		if n == nil {
@@ -374,6 +393,7 @@ func assertSequence32(ch chan *Node32, t *testing.T, desc string, e ...string) {
 }
 
 func assertStringLists(v, e []string, desc string, t *testing.T) {
+	t.Helper()
 	ctx := difflib.ContextDiff{
 		A:        e,
 		B:        v,

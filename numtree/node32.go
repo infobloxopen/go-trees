@@ -103,6 +103,25 @@ func (n *Node32) Enumerate() chan *Node32 {
 	return ch
 }
 
+// Enumerate returns channel which is populated by nodes with data in order of their keys (down to the target level only)
+func (n *Node32) EnumerateToLevel(targetLevel int) chan *Node32 {
+	ch := make(chan *Node32)
+
+	go func() {
+		defer close(ch)
+
+		// If tree is empty -
+		if n == nil {
+			// return nothing.
+			return
+		}
+
+		n.enumerateToLevel(0, targetLevel, ch)
+	}()
+
+	return ch
+}
+
 // Match locates node which key is equal to or "contains" the key passed as argument.
 func (n *Node32) Match(key uint32, bits int) (interface{}, bool) {
 	// If tree is empty -
@@ -302,6 +321,25 @@ func (n *Node32) enumerate(ch chan *Node32) {
 
 	if n.chld[1] != nil {
 		n.chld[1].enumerate(ch)
+	}
+}
+
+func (n *Node32) enumerateToLevel(level, targetLevel int, ch chan *Node32) {
+	// Implemented by depth-first search.
+	if n.Leaf {
+		ch <- n
+	}
+
+	if level == targetLevel {
+		return
+	}
+
+	if n.chld[0] != nil {
+		n.chld[0].enumerateToLevel(level+1, targetLevel, ch)
+	}
+
+	if n.chld[1] != nil {
+		n.chld[1].enumerateToLevel(level+1, targetLevel, ch)
 	}
 }
 

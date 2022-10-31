@@ -152,6 +152,23 @@ func (t *Tree) Enumerate() chan Pair {
 	return ch
 }
 
+// EnumerateToLevel returns channel which is populated by key-value pairs of tree content (down to the target level only)
+func (t *Tree) EnumerateToLevel(targetLevel int) chan Pair {
+	ch := make(chan Pair)
+
+	go func() {
+		defer close(ch)
+
+		if t == nil {
+			return
+		}
+
+		t.enumerateToLevel(targetLevel, ch)
+	}()
+
+	return ch
+}
+
 // GetByNet gets value for network which is equal to or contains given network.
 func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	if t == nil || n == nil {
@@ -250,6 +267,39 @@ func (t *Tree) enumerate(ch chan Pair) {
 		MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
 		if s, ok := n.Value.(subTree64); ok {
 			for n := range (*numtree.Node64)(s).Enumerate() {
+				LSIP := unpackUint64ToIP(n.Key)
+				mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+				ch <- Pair{
+					Key: &net.IPNet{
+						IP:   append(MSIP[0:8], LSIP...).Mask(mask),
+						Mask: mask},
+					Value: n.Value}
+			}
+		} else {
+			mask := net.CIDRMask(int(n.Bits), iPv6Bits)
+			ch <- Pair{
+				Key: &net.IPNet{
+					IP:   MSIP.Mask(mask),
+					Mask: mask},
+				Value: n.Value}
+		}
+	}
+}
+
+func (t *Tree) enumerateToLevel(targetLevel int, ch chan Pair) {
+	for n := range t.root32.EnumerateToLevel(targetLevel) {
+		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
+		ch <- Pair{
+			Key: &net.IPNet{
+				IP:   unpackUint32ToIP(n.Key).Mask(mask),
+				Mask: mask},
+			Value: n.Value}
+	}
+
+	for n := range t.root64.EnumerateToLevel(targetLevel) {
+		MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
+		if s, ok := n.Value.(subTree64); ok {
+			for n := range (*numtree.Node64)(s).EnumerateToLevel(targetLevel) {
 				LSIP := unpackUint64ToIP(n.Key)
 				mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
 				ch <- Pair{
