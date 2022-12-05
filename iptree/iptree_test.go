@@ -163,6 +163,203 @@ func TestEnumerate(t *testing.T) {
 	}
 }
 
+func TestContains(t *testing.T) {
+	testCases := []struct {
+		network1 string
+		network2 string
+		expected bool
+	}{
+		{"192.168.0.0/24", "10.0.0.0/32", false},
+		{"192.168.0.0/24", "255.168.0.0/32", false},
+		{"192.168.0.0/24", "192.168.0.0/32", true},
+		{"192.168.0.0/24", "192.168.0.1/32", true},
+		{"192.168.0.0/24", "192.168.0.254/32", true},
+		{"192.168.0.0/24", "192.168.0.255/32", true},
+		{"192.168.0.0/24", "192.168.1.0/32", false},
+
+		//
+		{"192.168.1.0/32", "192.168.0.0/24", false},
+		{"192.168.0.1/32", "192.168.0.0/24", false},
+		{"10.0.0.0/24", "10.0.0.0/28", true},
+	}
+
+	for i, tc := range testCases {
+		tc, i := tc, i+1
+		t.Run(fmt.Sprintf("Test %d", i), func(t *testing.T) {
+			ip1, cidr1, err := net.ParseCIDR(tc.network1)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !ip1.Equal(cidr1.IP) {
+				t.Errorf("invalid CIDR: %s", cidr1)
+			}
+			key1, bits1 := iPv4NetToUint32(cidr1)
+			if bits1 < 0 {
+				t.Errorf("unexpected bits: %d", bits1)
+			}
+
+			ip2, cidr2, err := net.ParseCIDR(tc.network2)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !ip2.Equal(cidr2.IP) {
+				t.Errorf("invalid CIDR: %s", cidr2)
+			}
+			key2, bits2 := iPv4NetToUint32(cidr2)
+			if bits1 < 0 {
+				t.Errorf("unexpected bits: %d", bits2)
+			}
+
+			actual := cidr1.Contains(cidr2.IP)
+			if tc.expected != actual {
+				t.Errorf("Unexpected result\n\texpected: %v\n\t  actual: %v\n", tc.expected, actual)
+			}
+			actual1 := actual
+
+			actual = contains(key1, key2, uint8(bits1), uint8(bits2))
+			if tc.expected != actual {
+				t.Errorf("Unexpected result\n\texpected: %v\n\t  actual: %v\n", tc.expected, actual)
+			}
+
+			if actual1 != actual {
+				t.Errorf("mismatch between stdlib and local implementation: %v (original) - %v (local)\n", actual1, actual)
+			}
+		})
+	}
+}
+
+func TestEnumerateFrom(t *testing.T) {
+	testCases := []struct {
+		input    [][]string
+		from     string
+		expected string
+	}{
+		{
+			from: "10.0.0.0/8",
+			input: [][]string{
+				{"10.0.0.0/32", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"10.0.0.0/24", "test 3"},
+				{"10.0.0.0/16", "test 4"},
+				{"10.0.0.0/8", "test 5"},
+			},
+			expected: "" +
+				"10.0.0.0/8: \"test 5\", " +
+				"10.0.0.0/16: \"test 4\", " +
+				"10.0.0.0/24: \"test 3\", " +
+				"10.0.0.0/28: \"test 2\", " +
+				"10.0.0.0/32: \"test 1\"",
+		},
+		{
+			from: "10.0.0.0/8",
+			input: [][]string{
+				{"10.0.0.0/16", "test 4"},
+				{"10.0.0.0/32", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"10.0.0.0/8", "test 5"},
+				{"10.0.0.0/24", "test 3"},
+			},
+			expected: "" +
+				"10.0.0.0/8: \"test 5\", " +
+				"10.0.0.0/16: \"test 4\", " +
+				"10.0.0.0/24: \"test 3\", " +
+				"10.0.0.0/28: \"test 2\", " +
+				"10.0.0.0/32: \"test 1\"",
+		},
+		{
+			from: "10.0.0.0/24",
+			input: [][]string{
+				{"10.0.0.0/32", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"10.0.0.0/24", "test 3"},
+				{"10.0.0.0/16", "test 4"},
+				{"10.0.0.0/8", "test 5"},
+			},
+			expected: "" +
+				"10.0.0.0/24: \"test 3\", " +
+				"10.0.0.0/28: \"test 2\", " +
+				"10.0.0.0/32: \"test 1\"",
+		},
+		{
+			from: "10.0.0.0/32",
+			input: [][]string{
+				{"10.0.0.0/32", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"10.0.0.0/24", "test 3"},
+				{"10.0.0.0/16", "test 4"},
+				{"10.0.0.0/8", "test 5"},
+			},
+			expected: "" +
+				"10.0.0.0/32: \"test 1\"",
+		},
+		{
+			from: "10.0.0.0/28",
+			input: [][]string{
+				{"10.0.0.0/32", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"10.0.0.0/24", "test 3"},
+				{"10.0.0.0/16", "test 4"},
+				{"10.0.0.0/8", "test 5"},
+			},
+			expected: "" +
+				"10.0.0.0/28: \"test 2\", " +
+				"10.0.0.0/32: \"test 1\"",
+		},
+		{
+			from: "10.0.0.0/28",
+			input: [][]string{
+				{"10.0.0.0/32", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"192.168.0.0/24", "test 6"},
+				{"10.0.0.0/24", "test 3"},
+				{"10.0.0.0/16", "test 4"},
+				{"10.0.0.0/8", "test 5"},
+			},
+			expected: "" +
+				"10.0.0.0/28: \"test 2\", " +
+				"10.0.0.0/32: \"test 1\"",
+		},
+	}
+
+	for i, tc := range testCases {
+		tc, i := tc, i+1
+		t.Run(fmt.Sprintf("Test %d: EnumerateFrom", i), func(t *testing.T) {
+			var r *Tree
+
+			for p := range r.Enumerate() {
+				t.Errorf("Expected no nodes in empty tree but got at least one: %s", p)
+				break
+			}
+
+			r = NewTree()
+
+			for _, v := range tc.input {
+				_, n, _ := net.ParseCIDR(v[0])
+				r = r.InsertNet(n, v[1])
+			}
+
+			ip, cidr, err := net.ParseCIDR(tc.from)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !ip.Equal(cidr.IP) {
+				t.Errorf("invalid CIDR: %s", cidr)
+			}
+
+			items := []string{}
+			for p := range r.EnumerateFrom(cidr) {
+				items = append(items, p.String())
+			}
+
+			s := strings.Join(items, ", ")
+			if s != tc.expected {
+				t.Errorf("Nodes do no match\n\t\t expected: %q\n\t\t   actual: %q", tc.expected, s)
+			}
+		})
+	}
+}
+
 func TestGetByNet(t *testing.T) {
 	r := NewTree()
 

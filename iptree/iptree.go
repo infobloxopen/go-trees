@@ -152,6 +152,23 @@ func (t *Tree) Enumerate() chan Pair {
 	return ch
 }
 
+func (t *Tree) EnumerateFrom(cidr *net.IPNet) chan Pair {
+	ch := make(chan Pair)
+	ip, bits := iPv4NetToUint32(cidr)
+
+	go func() {
+		defer close(ch)
+
+		if t == nil {
+			return
+		}
+
+		t.enumerateFrom(ch, ip, uint8(bits))
+	}()
+
+	return ch
+}
+
 // GetByNet gets value for network which is equal to or contains given network.
 func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	if t == nil || n == nil {
@@ -182,6 +199,44 @@ func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	}
 
 	return nil, false
+}
+
+func (t *Tree) GetByNet2(n *net.IPNet) (interface{}, *net.IPNet, bool) {
+	if t == nil || n == nil {
+		return nil, nil, false
+	}
+
+	if key, bits := iPv4NetToUint32(n); bits >= 0 {
+		v, ckey, cbits, ok := t.root32.Match2(key, bits)
+		mask := net.CIDRMask(int(cbits), iPv4Bits)
+		cidr := &net.IPNet{
+			IP:   unpackUint32ToIP(ckey).Mask(mask),
+			Mask: mask,
+		}
+		return v, cidr, ok
+	}
+
+	if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
+		v, ok := t.root64.Match(MSKey, MSBits)
+		if !ok || MSBits < numtree.Key64BitSize {
+			return v, nil, ok
+		}
+
+		s, ok := v.(subTree64)
+		if !ok {
+			return v, nil, true
+		}
+
+		v, ok = (*numtree.Node64)(s).Match(LSKey, LSBits)
+		if ok {
+			return v, nil, ok
+		}
+
+		value, ok := t.root64.Match(MSKey, numtree.Key64BitSize-1)
+		return value, nil, ok
+	}
+
+	return nil, nil, false
 }
 
 // GetByIP gets value for network which is equal to or contains given IP address.
@@ -234,6 +289,87 @@ func (t *Tree) DeleteByNet(n *net.IPNet) (*Tree, bool) {
 // DeleteByIP removes node by given IP address. The method returns new tree (old one remains unaffected) and flag indicating if deletion happens indeed.
 func (t *Tree) DeleteByIP(ip net.IP) (*Tree, bool) {
 	return t.DeleteByNet(newIPNetFromIP(ip))
+}
+
+var (
+	masks32 = []uint32{
+		0x00000000, 0x80000000, 0xc0000000, 0xe0000000,
+		0xf0000000, 0xf8000000, 0xfc000000, 0xfe000000,
+		0xff000000, 0xff800000, 0xffc00000, 0xffe00000,
+		0xfff00000, 0xfff80000, 0xfffc0000, 0xfffe0000,
+		0xffff0000, 0xffff8000, 0xffffc000, 0xffffe000,
+		0xfffff000, 0xfffff800, 0xfffffc00, 0xfffffe00,
+		0xffffff00, 0xffffff80, 0xffffffc0, 0xffffffe0,
+		0xfffffff0, 0xfffffff8, 0xfffffffc, 0xfffffffe,
+		0xffffffff}
+)
+
+func contains(key1, key2 uint32, bits1, bits2 uint8) bool {
+	if key1 == key2 && bits1 > bits2 {
+		return false
+	}
+
+	mask := masks32[bits1]
+	if (byte(key1>>24&0xff) & byte(mask>>24&0xff)) != (byte(key2>>24&0xff) & byte(mask>>24&0xff)) {
+		return false
+	}
+
+	if (byte(key1>>16&0xff) & byte(mask>>16&0xff)) != (byte(key2>>16&0xff) & byte(mask>>16&0xff)) {
+		return false
+	}
+
+	if (byte(key1>>8&0xff) & byte(mask>>8&0xff)) != (byte(key2>>8&0xff) & byte(mask>>8&0xff)) {
+		return false
+	}
+
+	if (byte(key1&0xff) & byte(mask&0xff)) != (byte(key2&0xff) & byte(mask&0xff)) {
+		return false
+	}
+
+	return true
+}
+
+func (t *Tree) enumerateFrom(ch chan Pair, ip uint32, bits uint8) {
+	reached := false
+	for n := range t.root32.Enumerate() {
+		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
+
+		if ip == n.Key && bits == n.Bits {
+			reached = true
+		}
+
+		if !reached || (reached && !contains(ip, n.Key, bits, n.Bits)) {
+			continue
+		}
+
+		ch <- Pair{
+			Key: &net.IPNet{
+				IP:   unpackUint32ToIP(n.Key).Mask(mask),
+				Mask: mask},
+			Value: n.Value}
+	}
+
+	for n := range t.root64.Enumerate() {
+		MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
+		if s, ok := n.Value.(subTree64); ok {
+			for n := range (*numtree.Node64)(s).Enumerate() {
+				LSIP := unpackUint64ToIP(n.Key)
+				mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+				ch <- Pair{
+					Key: &net.IPNet{
+						IP:   append(MSIP[0:8], LSIP...).Mask(mask),
+						Mask: mask},
+					Value: n.Value}
+			}
+		} else {
+			mask := net.CIDRMask(int(n.Bits), iPv6Bits)
+			ch <- Pair{
+				Key: &net.IPNet{
+					IP:   MSIP.Mask(mask),
+					Mask: mask},
+				Value: n.Value}
+		}
+	}
 }
 
 func (t *Tree) enumerate(ch chan Pair) {
