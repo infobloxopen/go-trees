@@ -126,11 +126,15 @@ func (n *Node32) Match(key uint32, bits int) (interface{}, bool) {
 	return r.Value, true
 }
 
-func (n *Node32) Match2(key uint32, bits int) (interface{}, uint32, uint8, bool) {
+func (n *Node32) Children() (*Node32, *Node32) {
+	return n.chld[0], n.chld[1]
+}
+
+func (n *Node32) Match2(key uint32, bits int) (interface{}, *Node32, bool) {
 	// If tree is empty -
 	if n == nil {
 		// report nothing.
-		return n, 0, 0, false
+		return n, nil, false
 	}
 
 	// Adjust bits.
@@ -140,16 +144,16 @@ func (n *Node32) Match2(key uint32, bits int) (interface{}, uint32, uint8, bool)
 		bits = Key32BitSize
 	}
 
-	r, key, bits2 := n.match2(key, uint8(bits))
+	r, c := n.match2(key, uint8(bits))
 	if r == nil {
-		return nil, key, bits2, false
+		return nil, c, false
 	}
 
 	if n.chld[0] != nil || n.chld[1] != nil {
-		return r.Value, r.Key, r.Bits, true
+		return r.Value, r, true
 	}
 
-	return r.Value, 0, 0, true
+	return r.Value, nil, true
 }
 
 // ExactMatch locates node which exactly matches given key.
@@ -372,45 +376,52 @@ func (n *Node32) match(key uint32, bits uint8) *Node32 {
 	return nil
 }
 
-func (n *Node32) match2(key uint32, bits uint8) (*Node32, uint32, uint8) {
+func (n *Node32) match2(key uint32, bits uint8) (*Node32, *Node32) {
 	// If can't be contained in current root node -
 	if n.Bits > bits {
 		// report nothing.
-		return nil, n.Key, n.Bits
+		return nil, n
 	}
 
 	// If NSB of current tree node is the same as key has -
 	if n.Bits == bits {
 		// return current node only if it contains data (leaf node) and masked keys are equal.
 		if n.Leaf && (n.Key^key)&masks32[n.Bits] == 0 {
-			return n, 0, 0
+			return n, nil
 		}
 
-		return nil, 0, 0
+		return nil, nil
 	}
 
 	// If key can be contained by current tree node -
 	if (n.Key^key)&masks32[n.Bits] != 0 {
-		// but it isn't report nothing.
-		return nil, 0, 0
+		// but it isn't, report nothing.
+		return nil, nil
 	}
 
+	var c2 *Node32
 	// Otherwise jump to branch by key bit right after NSB of current tree node
 	c := n.chld[(key>>(Key32BitSize-1-n.Bits))&1]
 	if c != nil {
 		// and check if child on the branch has anything.
-		r := c.match(key, bits)
+		r, nc := c.match2(key, bits)
 		if r != nil {
-			return r, 0, 0
+			return r, nc
+		} else {
+			if nc != nil {
+				c2 = nc
+			} else {
+				c2 = c
+			}
 		}
 	}
 
 	// If nothing matches check if current node contains any data.
 	if n.Leaf {
-		return n, 0, 0
+		return n, nil
 	}
 
-	return nil, 0, 0
+	return nil, c2
 }
 
 func (n *Node32) exactMatch(key uint32, bits uint8) *Node32 {

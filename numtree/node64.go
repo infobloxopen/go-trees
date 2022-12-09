@@ -65,6 +65,10 @@ func (n *Node64) Dot() string {
 	return "digraph d {\n" + body + "}\n"
 }
 
+func (n *Node64) Children() (*Node64, *Node64) {
+	return n.chld[0], n.chld[1]
+}
+
 // Insert puts new leaf to radix tree and returns pointer to new root. The method uses copy on write strategy so old root doesn't see the change.
 func (n *Node64) Insert(key uint64, bits int, value interface{}) *Node64 {
 	if bits < 0 {
@@ -123,6 +127,25 @@ func (n *Node64) Match(key uint64, bits int) (interface{}, bool) {
 	}
 
 	return r.Value, true
+}
+
+func (n *Node64) Match2(key uint64, bits int) (interface{}, *Node64, bool) {
+	if n == nil {
+		return n, nil, false
+	}
+
+	if bits < 0 {
+		bits = 0
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
+	}
+
+	r, c := n.match2(key, uint8(bits))
+	if r == nil {
+		return nil, c, false
+	}
+
+	return r.Value, r, true
 }
 
 // ExactMatch locates node which exactly matches given key.
@@ -306,6 +329,45 @@ func (n *Node64) match(key uint64, bits uint8) *Node64 {
 	}
 
 	return nil
+}
+
+func (n *Node64) match2(key uint64, bits uint8) (*Node64, *Node64) {
+	if n.Bits > bits {
+		return nil, n
+	}
+
+	if n.Bits == bits {
+		if n.Leaf && (n.Key^key)&masks64[n.Bits] == 0 {
+			return n, nil
+		}
+
+		return nil, nil
+	}
+
+	if (n.Key^key)&masks64[n.Bits] != 0 {
+		return nil, nil
+	}
+
+	var c2 *Node64
+	c := n.chld[(key>>(Key64BitSize-1-n.Bits))&1]
+	if c != nil {
+		r, nc := c.match2(key, bits)
+		if r != nil {
+			return r, nc
+		} else {
+			if nc != nil {
+				c2 = nc
+			} else {
+				c2 = c
+			}
+		}
+	}
+
+	if n.Leaf {
+		return n, nil
+	}
+
+	return nil, c2
 }
 
 func (n *Node64) exactMatch(key uint64, bits uint8) *Node64 {

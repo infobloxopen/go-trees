@@ -176,11 +176,10 @@ func TestContains(t *testing.T) {
 		{"192.168.0.0/24", "192.168.0.254/32", true},
 		{"192.168.0.0/24", "192.168.0.255/32", true},
 		{"192.168.0.0/24", "192.168.1.0/32", false},
-
-		//
 		{"192.168.1.0/32", "192.168.0.0/24", false},
 		{"192.168.0.1/32", "192.168.0.0/24", false},
 		{"10.0.0.0/24", "10.0.0.0/28", true},
+		//{"10.0.0.0/28", "10.0.0.0/24", false},
 	}
 
 	for i, tc := range testCases {
@@ -228,12 +227,96 @@ func TestContains(t *testing.T) {
 	}
 }
 
+func TestContains2(t *testing.T) {
+	testCases := []struct {
+		network1 string
+		network2 string
+		expected bool
+	}{
+		{"2001:db8::/32", "2001:db8::/32", true},
+		{"2001:db8::/31", "2001:db8::/32", true},
+		{"2001:db8::/31", "2001:db8::/128", true},
+		{"2001:db8::/128", "2001:db8::/31", false},
+		{"2001:4860:4860::/48", "2001:4860:4860::/64", true},
+		{"2001:4860:4860::/64", "2001:4860:4860::/64", true},
+		{"2001:4860:4860::/64", "2001:4860:4860::/92", true},
+		{"2001:4860:4860::/92", "2001:4860:4860::/64", false},
+		{"2001:4860:4860:0:8888:0:ffff:0/127", "2001:4860:4860:0:8888:0:ffff:0/128", true},
+		{"2001:4860:4860:0:8888:0:0:0/127", "2001:4860:4860::1:0/128", false},
+		{"2001:4860:4860:0:8888:0:1:0/127", "2001:4860:4860::/128", false},
+		{"2001:4860:4860::/48", "684d:1111:222::/48", false},
+		//{"10.0.0.0/28", "10.0.0.0/24", false},
+	}
+
+	for i, tc := range testCases {
+		tc, i := tc, i+1
+		t.Run(fmt.Sprintf("Test %d", i), func(t *testing.T) {
+			ip1, cidr1, err := net.ParseCIDR(tc.network1)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !ip1.Equal(cidr1.IP) {
+				t.Errorf("invalid CIDR: %s", cidr1)
+			}
+			mkey1, mbits1, lkey1, lbits1 := iPv6NetToUint64Pair(cidr1)
+			if mbits1 < 0 || lbits1 < 0 {
+				t.Errorf("unexpected bits: %d - %d", mbits1, lbits1)
+			}
+			bits1, _ := cidr1.Mask.Size()
+
+			ip2, cidr2, err := net.ParseCIDR(tc.network2)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !ip2.Equal(cidr2.IP) {
+				t.Errorf("invalid CIDR: %s", cidr2)
+			}
+			mkey2, mbits2, lkey2, lbits2 := iPv6NetToUint64Pair(cidr2)
+			if mbits2 < 0 || lbits2 < 0 {
+				t.Errorf("unexpected bits: %d - %d", mbits2, lbits2)
+			}
+
+			bits2, _ := cidr2.Mask.Size()
+
+			actual := cidr1.Contains(cidr2.IP)
+			if actual && ip1.String() == ip2.String() && bits1 > bits2 {
+				actual = false
+			}
+			if tc.expected != actual {
+				t.Errorf("Unexpected result\n\texpected: %v\n\t  actual: %v\n", tc.expected, actual)
+			}
+
+			actual1 := actual
+
+			actual = contains2(mkey1, mbits1, lkey1, lbits1, mkey2, mbits2, lkey2, lbits2)
+			if tc.expected != actual {
+				t.Errorf("Unexpected result\n\texpected: %v\n\t  actual: %v\n", tc.expected, actual)
+			}
+
+			if actual1 != actual {
+				t.Errorf("mismatch between stdlib and local implementation: %v (original) - %v (local)\n", actual1, actual)
+			}
+		})
+	}
+}
+
 func TestEnumerateFrom(t *testing.T) {
 	testCases := []struct {
 		input    [][]string
 		from     string
 		expected string
+		tree     string
 	}{
+		{
+			from:     "10.0.0.0/8",
+			input:    [][]string{},
+			expected: "",
+			//"10.0.0.0/8: \"test 5\", " +
+			//"10.0.0.0/16: \"test 4\", " +
+			//"10.0.0.0/24: \"test 3\", " +
+			//"10.0.0.0/28: \"test 2\", " +
+			//"10.0.0.0/32: \"test 1\"",
+		},
 		{
 			from: "10.0.0.0/8",
 			input: [][]string{
@@ -319,6 +402,110 @@ func TestEnumerateFrom(t *testing.T) {
 				"10.0.0.0/28: \"test 2\", " +
 				"10.0.0.0/32: \"test 1\"",
 		},
+
+		// IPv6
+		{
+			from: "2001:4860:4860::/48",
+			input: [][]string{
+				{"2001:4860:4860::/128", "test 1"},
+				{"2001:4860:4860::/92", "test 2"},
+				{"2001:4860:4860::/64", "test 3"},
+				{"2001:4860:4860::/56", "test 4"},
+				{"2001:4860:4860::/48", "test 5"},
+			},
+			expected: "" +
+				"2001:4860:4860::/48: \"test 5\", " +
+				"2001:4860:4860::/56: \"test 4\", " +
+				"2001:4860:4860::/64: \"test 3\", " +
+				"2001:4860:4860::/92: \"test 2\", " +
+				"2001:4860:4860::/128: \"test 1\"",
+		},
+		{
+			from: "2001:4860:4860::/48",
+			input: [][]string{
+				{"2001:4860:4860::/56", "test 4"},
+				{"2001:4860:4860::/128", "test 1"},
+				{"2001:4860:4860::/92", "test 2"},
+				{"2001:4860:4860::/48", "test 5"},
+				{"2001:4860:4860::/64", "test 3"},
+			},
+			expected: "" +
+				"2001:4860:4860::/48: \"test 5\", " +
+				"2001:4860:4860::/56: \"test 4\", " +
+				"2001:4860:4860::/64: \"test 3\", " +
+				"2001:4860:4860::/92: \"test 2\", " +
+				"2001:4860:4860::/128: \"test 1\"",
+		},
+		{
+			from: "2001:4860:4860::/64",
+			input: [][]string{
+				{"2001:4860:4860::/56", "test 4"},
+				{"2001:4860:4860::/128", "test 1"},
+				{"2001:4860:4860::/92", "test 2"},
+				{"2001:4860:4860::/48", "test 5"},
+				{"2001:4860:4860::/64", "test 3"},
+			},
+			expected: "" +
+				"2001:4860:4860::/64: \"test 3\", " +
+				"2001:4860:4860::/92: \"test 2\", " +
+				"2001:4860:4860::/128: \"test 1\"",
+		},
+		{
+			from: "2001:4860:4860::/128",
+			input: [][]string{
+				{"2001:4860:4860::/56", "test 4"},
+				{"2001:4860:4860::/128", "test 1"},
+				{"2001:4860:4860::/92", "test 2"},
+				{"2001:4860:4860::/48", "test 5"},
+				{"2001:4860:4860::/64", "test 3"},
+			},
+			expected: "" +
+				"2001:4860:4860::/128: \"test 1\"",
+		},
+		{
+			from: "2001:4860:4860::/92",
+			input: [][]string{
+				{"2001:4860:4860::/56", "test 4"},
+				{"2001:4860:4860::/128", "test 1"},
+				{"2001:4860:4860::/92", "test 2"},
+				{"2001:4860:4860::/48", "test 5"},
+				{"2001:4860:4860::/64", "test 3"},
+			},
+			expected: "" +
+				"2001:4860:4860::/92: \"test 2\", " +
+				"2001:4860:4860::/128: \"test 1\"",
+		},
+		{
+			from: "2001:4860:4860::/92",
+			input: [][]string{
+				{"2001:4860:4860::/56", "test 4"},
+				{"2001:4860:4860::/128", "test 1"},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7"},
+				{"2001:4860:4860:0:1:0:ffff:ffff/98", "test 8"},
+				{"2001:4860:4860::/92", "test 2"},
+				{"2001:4860:4860::001f:ffff:ffff/128", "test 6"},
+				{"2001:4860:4860::/48", "test 5"},
+				{"2001:4860:4860::/64", "test 3"},
+			},
+			expected: "" +
+				"2001:4860:4860::/92: \"test 2\", " +
+				"2001:4860:4860::/128: \"test 1\"",
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n" +
+				"",
+		},
 	}
 
 	for i, tc := range testCases {
@@ -355,6 +542,12 @@ func TestEnumerateFrom(t *testing.T) {
 			s := strings.Join(items, ", ")
 			if s != tc.expected {
 				t.Errorf("Nodes do no match\n\t\t expected: %q\n\t\t   actual: %q", tc.expected, s)
+			}
+
+			if tc.tree != "" {
+				if r.String() != tc.tree {
+					t.Errorf("Tree representation did not match\nexpected:\n%s\n\n  actual:\n%s\n", tc.tree, r.String())
+				}
 			}
 		})
 	}
@@ -401,6 +594,252 @@ func TestGetByNet(t *testing.T) {
 	_, n6, _ = net.ParseCIDR("2001:db8:0:0:0:fe::/96")
 	v, ok = r.GetByNet(n6)
 	assertResult(v, ok, "test 2.1", fmt.Sprintf("%s", n6), t)
+}
+
+func TestGetByNet2(t *testing.T) {
+	parseCIDR := func(s string) *net.IPNet {
+		_, n, _ := net.ParseCIDR(s)
+		return n
+	}
+
+	type testCase struct {
+		network     string
+		ok          bool
+		value       string
+		hasChildren bool
+	}
+
+	testCases := []struct {
+		cidrs [][]string
+		tree  string
+		cases []testCase
+	}{
+		{
+			cidrs: [][]string{},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			cases: []testCase{
+				{"192.0.2.0/24", false, "", false},
+				{"2001:db8::/32", false, "", false},
+				{"2001:db8:0:0:0:ff::/96", false, "", false},
+				{"2001:db8:1::/64", false, "", false},
+				{"2001:db8:0:0:0:fe::/96", false, "", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"10.0.0.0/24", "test 1"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/24\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			cases: []testCase{
+				{"10.0.0.0/24", true, "test 1", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"11.0.0.0/24", "test 1"},
+				{"10.0.0.0/24", "test 4"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/7\n" +
+				"\t10.0.0.0/24\n" +
+				"\t11.0.0.0/24\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			cases: []testCase{
+				{"11.0.0.0/24", true, "test 1", false},
+				{"10.0.0.0/24", true, "test 4", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"10.0.0.0/24", "test 1"},
+				{"10.0.0.0/28", "test 2"},
+				{"10.0.0.0/30", "test 3"},
+				{"10.0.0.0/32", "test 4"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/24\n" +
+				"\t10.0.0.0/28\n" +
+				"\t\t10.0.0.0/30\n" +
+				"\t\t\t10.0.0.0/32\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			cases: []testCase{
+				{"10.0.0.0/24", true, "test 1", true},
+				{"10.0.0.0/28", true, "test 2", true},
+				{"10.0.0.0/30", true, "test 3", true},
+				{"10.0.0.0/32", true, "test 4", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"192.0.2.0/24", "test 1"},
+				{"2001:db8::/32", "test 2.1"},
+				{"2001:db8:1::/48", "test 2.2"},
+				{"2001:db8:0:0:0:ff::/96", "test 3"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"192.0.2.0/24\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:db8::/32 (\"test 2.1\")\n" +
+				"\t2001:db8::ff:0:0/96 (\"test 3\")\n" +
+				"\t2001:db8:1::/48 (\"test 2.2\")\n",
+			cases: []testCase{
+				{"192.0.2.0/24", true, "test 1", false},
+				{"2001:db8::/32", true, "test 2.1", true},
+				{"2001:db8:0:0:0:ff::/96", true, "test 3", false},
+				{"2001:db8:1::/64", true, "test 2.2", false},
+				{"2001:db8:0:0:0:fe::/96", true, "test 2.1", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"2001:4860:4860::/48", "test 1"},
+				{"2001:4860:4860::1f:c000:0/98", "test 2.1"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 1\")\n" +
+				"\t2001:4860:4860::1f:c000:0/98 (\"test 2.1\")\n",
+			cases: []testCase{
+				{"2001:4860:4860::/48", true, "test 1", true},
+				{"2001:4860:4860::1f:c000:0/98", true, "test 2.1", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"2001:4860:4860::1f:c0ff:f/128", "test 1"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::1f:c0ff:f/128 (\"test 1\")\n",
+			cases: []testCase{
+				{"2001:4860:4860::1f:c0ff:f/128", true, "test 1", false},
+				{"2001:4860:4860::1f:c000:0/98", false, "", true},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"192.0.2.0/24", "test 1"},
+				{"2001:db8::/32", "test 2.1"},
+				{"2001:db8:1::/48", "test 2.2"},
+				{"2001:db8:0:0:0:ff::/96", "test 3"},
+				{"2001:db8:0:0:0:ff::/128", "test 4"},
+				{"10.0.0.0/24", "test 10.3"},
+				{"10.0.0.0/32", "test 10.5"},
+				{"10.0.0.0/28", "test 10.4"},
+				{"10.0.0.0/16", "test 10.2"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0\n" +
+				"\t10.0.0.0/16\n" +
+				"\t\t10.0.0.0/24\n" +
+				"\t\t\t10.0.0.0/28\n" +
+				"\t\t\t\t10.0.0.0/32\n" +
+				"\t192.0.2.0/24\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:db8::/32 (\"test 2.1\")\n" +
+				"\t2001:db8::ff:0:0/96 (\"test 3\")\n" +
+				"\t\t2001:db8::ff:0:0/128 (\"test 4\")\n" +
+				"\t2001:db8:1::/48 (\"test 2.2\")\n",
+			cases: []testCase{
+				{"192.0.2.0/24", true, "test 1", false},
+				{"10.0.0.0/32", true, "test 10.5", false},
+				{"10.0.0.0/24", true, "test 10.3", true},
+				{"10.0.0.0/16", true, "test 10.2", true},
+				{"2001:db8::/32", true, "test 2.1", true},
+				{"2001:db8:0:0:0:ff::/96", true, "test 3", true},
+				{"2001:db8:1::/64", true, "test 2.2", false},
+				{"2001:db8:0:0:0:fe::/96", true, "test 2.1", false},
+				{"10.0.0.0/8", false, "", true},
+				{"172.16.0.0/8", false, "", false},
+			},
+		},
+		{
+			cidrs: [][]string{
+				{"10.0.0.0/16", "test 10.2"},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/16\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n" +
+				"",
+			cases: []testCase{
+				{"10.0.0.0/8", false, "", true},
+			},
+		},
+	}
+
+	for j, tc := range testCases {
+		tc, j := tc, j+1
+		t.Run(fmt.Sprintf("Test %d\n", j), func(t *testing.T) {
+			r := NewTree()
+
+			for _, tc := range tc.cidrs {
+				r = r.InsertNet(parseCIDR(tc[0]), tc[1])
+			}
+
+			if tc.tree != "" {
+				if tc.tree != r.String() {
+					t.Errorf("Tree representation did not match\nexpected:\n%s\n\n  actual:\n%s\n", tc.tree, r.String())
+				}
+			}
+
+			for i, tc2 := range tc.cases {
+				tc2, i := tc2, i+1
+				t.Run(fmt.Sprintf("Test %d", i), func(t *testing.T) {
+					v, n2, ok := r.GetByNet2(parseCIDR(tc2.network))
+					v2, ok2 := r.GetByNet(parseCIDR(tc2.network))
+					if v2 != v {
+						t.Errorf("Mismatch between GetByNet and GetByNet2 (1)\n\texpected: %v\n\t  actual: %v\n", v2, v)
+					}
+					if ok != ok2 {
+						t.Errorf("Mismatch between GetByNet and GetByNet2 (2)\n\texpected: %v\n\t  actual: %v\n", ok2, ok)
+					}
+
+					if tc2.ok {
+						assertResult(v, ok, tc2.value, tc2.network, t)
+					}
+					if n2 != tc2.hasChildren {
+						t.Errorf("Expected found network to match (2)\n\texpected: %v\n\t  actual: %v\n", tc2.hasChildren, n2)
+					}
+				})
+			}
+
+			v, n2, ok := r.GetByNet2(nil)
+			if ok {
+				t.Errorf("Expected no result for nil network but got %T (%#v)", v, v)
+			}
+			if n2 != false {
+				t.Errorf("Expected found network to be nil but it was not: %#v", n2)
+			}
+
+			v, n2, ok = r.GetByNet2(&net.IPNet{IP: nil, Mask: nil})
+			if ok {
+				t.Errorf("Expected no result for invalid network but got %T (%#v)", v, v)
+			}
+			if n2 != false {
+				t.Errorf("Expected found network to be nil but it was not: %#v", n2)
+			}
+		})
+	}
 }
 
 func TestDeleteByNet(t *testing.T) {
@@ -624,6 +1063,7 @@ func assertPanic(f func(), desc string, t *testing.T) {
 }
 
 func assertResult(v interface{}, ok bool, e, desc string, t *testing.T) {
+	t.Helper()
 	if ok {
 		s, ok := v.(string)
 		if ok {
