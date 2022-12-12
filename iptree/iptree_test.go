@@ -300,6 +300,239 @@ func TestContains2(t *testing.T) {
 	}
 }
 
+func TestInplaceInsertNet2(t *testing.T) {
+	type action struct {
+		network        string
+		value          string
+		expectedResult bool
+	}
+	testCases := []struct {
+		actions []action
+		tree    string
+	}{
+		{
+			actions: []action{
+				{"10.0.0.0/24", "0", false},
+				{"10.0.0.0/28", "1", false},
+				{"10.0.0.0/32", "2", false},
+				{"10.0.0.0/16", "3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/16\n" +
+				"\t10.0.0.0/24\n" +
+				"\t\t10.0.0.0/28\n" +
+				"\t\t\t10.0.0.0/32\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/24", "0", false},
+				{"192.168.0.0/28", "1", false},
+				{"10.0.0.0/16", "5", false},
+				{"192.168.0.0/32", "2", false},
+				{"192.168.0.0/16", "3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0\n" +
+				"\t10.0.0.0/16\n" +
+				"\t192.168.0.0/16\n" +
+				"\t\t192.168.0.0/24\n" +
+				"\t\t\t192.168.0.0/28\n" +
+				"\t\t\t\t192.168.0.0/32\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/16", "3", false},
+				{"192.168.0.0/32", "2", false},
+				{"192.168.0.0/28", "1", true},
+				{"192.168.0.0/24", "0", true},
+				{"10.0.0.0/16", "5", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0\n" +
+				"\t10.0.0.0/16\n" +
+				"\t192.168.0.0/16\n" +
+				"\t\t192.168.0.0/24\n" +
+				"\t\t\t192.168.0.0/28\n" +
+				"\t\t\t\t192.168.0.0/32\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/16", "3", false},
+				{"192.168.0.0/32", "2", false},
+				{"192.168.0.0/28", "1", true},
+				{"192.168.0.0/24", "0", true},
+				{"10.0.0.0/16", "5", false},
+				{"192.168.0.0/16", "3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0\n" +
+				"\t10.0.0.0/16\n" +
+				"\t192.168.0.0/16\n" +
+				"\t\t192.168.0.0/24\n" +
+				"\t\t\t192.168.0.0/28\n" +
+				"\t\t\t\t192.168.0.0/32\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/16", "1", false},
+				{"10.0.0.0/16", "2", false},
+				{"172.0.0.0/16", "3", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0\n" +
+				"\t10.0.0.0/16\n" +
+				"\t128.0.0.0/1\n" +
+				"\t\t172.0.0.0/16\n" +
+				"\t\t192.168.0.0/16\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+
+		// IPv6
+		{
+			actions: []action{
+				{"2001:4860:4860::/48", "test 5", false},
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/64", "test 3", false},
+				{"2001:4860:4860::/92", "test 2", false},
+				{"2001:4860:4860::/128", "test 1", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/48", "test 5", false},
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/64", "test 3", false},
+				{"2001:4860:4860::/92", "test 2", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::/64", "test 3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::/127", "test 6", true},
+				{"2001:4860:4860::/92", "test 2", true},
+				{"2001:4860:4860::/64", "test 3", true},
+				{"2001:4860:4860::/56", "test 4", true},
+				{"2001:4860:4860::/48", "test 5", true},
+				{"2001:4860:4860::/127", "test 6", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/127 (\"test 6\")\n" +
+				"\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7", false},
+				{"2001:4860:4860:0:1:0:ffff:ffff/98", "test 8", false},
+				{"2001:4860:4860::/92", "test 2", true},
+				{"2001:4860:4860::001f:ffff:ffff/128", "test 6", false},
+				{"2001:4860:4860::/48", "test 5", true},
+				{"2001:4860:4860::/64", "test 3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n" +
+				"",
+		},
+	}
+
+	parseCIDR := func(s string) *net.IPNet {
+		_, n, _ := net.ParseCIDR(s)
+		return n
+	}
+
+	for i, tc := range testCases {
+		tc, i := tc, i+1
+		t.Run(fmt.Sprintf("Test %d: InplaceInsertNetWithHierarchyChange", i), func(t *testing.T) {
+			var r *Tree
+			r = NewTree()
+			for _, c := range tc.actions {
+				actual := r.InplaceInsertNetWithHierarchyChange(parseCIDR(c.network), c.value)
+				if actual != c.expectedResult {
+					t.Errorf(
+						"Expected result does not match for new node entry (%s - %s)\n\t\t expected: %v\n\t\t   actual: %v",
+						c.network, c.value, c.expectedResult, actual,
+					)
+				}
+			}
+
+			if tc.tree != "" {
+				if r.String() != tc.tree {
+					t.Errorf("Tree representation did not match\nexpected:\n%s\n\n  actual:\n%s\n", tc.tree, r.String())
+				}
+			}
+		})
+	}
+}
+
 func TestEnumerateFrom(t *testing.T) {
 	testCases := []struct {
 		input    [][]string
@@ -311,11 +544,6 @@ func TestEnumerateFrom(t *testing.T) {
 			from:     "10.0.0.0/8",
 			input:    [][]string{},
 			expected: "",
-			//"10.0.0.0/8: \"test 5\", " +
-			//"10.0.0.0/16: \"test 4\", " +
-			//"10.0.0.0/24: \"test 3\", " +
-			//"10.0.0.0/28: \"test 2\", " +
-			//"10.0.0.0/32: \"test 1\"",
 		},
 		{
 			from: "10.0.0.0/8",

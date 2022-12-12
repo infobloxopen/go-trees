@@ -127,6 +127,45 @@ func (t *Tree) InplaceInsertNet(n *net.IPNet, value interface{}) {
 	}
 }
 
+func (t *Tree) InplaceInsertNetWithHierarchyChange(n *net.IPNet, value interface{}) bool {
+	var hasChildren bool
+	if n == nil {
+		return false
+	}
+
+	if key, bits := iPv4NetToUint32(n); bits >= 0 {
+		t.root32, hasChildren = t.root32.InplaceInsertWithHierarchyChange(key, bits, value)
+		return hasChildren
+	} else if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
+		if MSBits < numtree.Key64BitSize {
+			t.root64, hasChildren = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, value)
+			return hasChildren
+		} else {
+			if v, ok := t.root64.ExactMatch(MSKey, MSBits); ok {
+				s, ok := v.(subTree64)
+				if !ok {
+					err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
+						MSKey, MSBits, v, v)
+					panic(err)
+				}
+
+				r := (*numtree.Node64)(s)
+				var newR *numtree.Node64
+				newR, hasChildren = r.InplaceInsertWithHierarchyChange(LSKey, LSBits, value)
+				if newR != r {
+					t.root64, _ = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, subTree64(newR))
+				}
+			} else {
+				var r *numtree.Node64
+				r, _ = r.InplaceInsertWithHierarchyChange(LSKey, LSBits, value)
+				t.root64, hasChildren = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, subTree64(r))
+			}
+			return hasChildren
+		}
+	}
+	return hasChildren
+}
+
 // InsertIP inserts value using given IP address as a key. The method returns new tree (old one remains unaffected).
 func (t *Tree) InsertIP(ip net.IP, value interface{}) *Tree {
 	return t.InsertNet(newIPNetFromIP(ip), value)

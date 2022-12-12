@@ -84,6 +84,17 @@ func (n *Node32) InplaceInsert(key uint32, bits int, value interface{}) *Node32 
 	return n.inplaceInsert(key, uint8(bits), value)
 }
 
+func (n *Node32) InplaceInsertWithHierarchyChange(key uint32, bits int, value interface{}) (*Node32, bool) {
+	// Adjust bits.
+	if bits < 0 {
+		bits = 0
+	} else if bits > Key32BitSize {
+		bits = Key32BitSize
+	}
+
+	return n.inplaceInsertWithHierarchyChange(key, uint8(bits), value)
+}
+
 // Enumerate returns channel which is populated by nodes with data in order of their keys.
 func (n *Node32) Enumerate() chan *Node32 {
 	ch := make(chan *Node32)
@@ -318,6 +329,64 @@ func (n *Node32) inplaceInsert(key uint32, sbits uint8, value interface{}) *Node
 
 	p.chld[branch] = n
 	return r
+}
+
+func (n *Node32) inplaceInsertWithHierarchyChange(key uint32, sbits uint8, value interface{}) (*Node32, bool) {
+	var (
+		p           *Node32
+		branch      uint32
+		hasChildren bool
+	)
+
+	r := n
+
+	for n != nil {
+		cbits := uint8(bits.LeadingZeros32((n.Key ^ key) | ^masks32[n.Bits] | ^masks32[sbits]))
+		if cbits < n.Bits {
+			pBranch := branch
+			branch = (n.Key >> (Key32BitSize - 1 - cbits)) & 1
+
+			var m *Node32
+
+			if cbits == sbits {
+				m = newNode32(key, sbits, true, value)
+				m.chld[branch] = n
+				hasChildren = true
+			} else {
+				m = newNode32(key&masks32[cbits], cbits, false, nil)
+				m.chld[1-branch] = newNode32(key, sbits, true, value)
+			}
+
+			m.chld[branch] = n
+			if p == nil {
+				r = m
+			} else {
+				p.chld[pBranch] = m
+			}
+
+			return r, hasChildren
+		}
+
+		if sbits == n.Bits {
+			n.Key = key
+			n.Leaf = true
+			n.Value = value
+			hasChildren = true
+			return r, hasChildren
+		}
+
+		p = n
+		branch = (key >> (Key32BitSize - 1 - cbits)) & 1
+		n = n.chld[branch]
+	}
+
+	n = newNode32(key, sbits, true, value)
+	if p == nil {
+		return n, hasChildren
+	}
+
+	p.chld[branch] = n
+	return r, hasChildren
 }
 
 func (n *Node32) enumerate(ch chan *Node32) {
