@@ -237,8 +237,7 @@ func (t *Tree) EnumerateFrom(cidr *net.IPNet) chan Pair {
 		if cidr.IP.To4() == nil {
 			t.enumerateFromIPv6Net(ch, cidr)
 		} else {
-			ip, bits := iPv4NetToUint32(cidr)
-			t.enumerateFromIPv4Net(ch, ip, uint8(bits))
+			t.enumerateFromIPv4Net(ch, cidr)
 		}
 	}()
 
@@ -550,16 +549,17 @@ func containsIPv4(key1, key2 uint32, bits1, bits2 uint8) bool {
 	return true
 }
 
-func (t *Tree) enumerateFromIPv4Net(ch chan Pair, ip uint32, bits uint8) {
+func (t *Tree) enumerateFromIPv4Net(ch chan Pair, cidr *net.IPNet) {
+	ip, bits := iPv4NetToUint32(cidr)
 	reached := false
 	for n := range t.root32.Enumerate() {
 		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
 
-		if ip == n.Key && bits == n.Bits {
+		if ip == n.Key && uint8(bits) == n.Bits {
 			reached = true
 		}
 
-		if !reached || (reached && !containsIPv4(ip, n.Key, bits, n.Bits)) {
+		if !reached || (reached && !containsIPv4(ip, n.Key, uint8(bits), n.Bits)) {
 			continue
 		}
 
