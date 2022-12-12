@@ -20,6 +20,38 @@ var (
 	iPv6MaxMask = net.CIDRMask(iPv6Bits, iPv6Bits)
 )
 
+var (
+	masks32 = []uint32{
+		0x00000000, 0x80000000, 0xc0000000, 0xe0000000,
+		0xf0000000, 0xf8000000, 0xfc000000, 0xfe000000,
+		0xff000000, 0xff800000, 0xffc00000, 0xffe00000,
+		0xfff00000, 0xfff80000, 0xfffc0000, 0xfffe0000,
+		0xffff0000, 0xffff8000, 0xffffc000, 0xffffe000,
+		0xfffff000, 0xfffff800, 0xfffffc00, 0xfffffe00,
+		0xffffff00, 0xffffff80, 0xffffffc0, 0xffffffe0,
+		0xfffffff0, 0xfffffff8, 0xfffffffc, 0xfffffffe,
+		0xffffffff}
+
+	masks64 = []uint64{
+		0x0000000000000000, 0x8000000000000000, 0xc000000000000000, 0xe000000000000000,
+		0xf000000000000000, 0xf800000000000000, 0xfc00000000000000, 0xfe00000000000000,
+		0xff00000000000000, 0xff80000000000000, 0xffc0000000000000, 0xffe0000000000000,
+		0xfff0000000000000, 0xfff8000000000000, 0xfffc000000000000, 0xfffe000000000000,
+		0xffff000000000000, 0xffff800000000000, 0xffffc00000000000, 0xffffe00000000000,
+		0xfffff00000000000, 0xfffff80000000000, 0xfffffc0000000000, 0xfffffe0000000000,
+		0xffffff0000000000, 0xffffff8000000000, 0xffffffc000000000, 0xffffffe000000000,
+		0xfffffff000000000, 0xfffffff800000000, 0xfffffffc00000000, 0xfffffffe00000000,
+		0xffffffff00000000, 0xffffffff80000000, 0xffffffffc0000000, 0xffffffffe0000000,
+		0xfffffffff0000000, 0xfffffffff8000000, 0xfffffffffc000000, 0xfffffffffe000000,
+		0xffffffffff000000, 0xffffffffff800000, 0xffffffffffc00000, 0xffffffffffe00000,
+		0xfffffffffff00000, 0xfffffffffff80000, 0xfffffffffffc0000, 0xfffffffffffe0000,
+		0xffffffffffff0000, 0xffffffffffff8000, 0xffffffffffffc000, 0xffffffffffffe000,
+		0xfffffffffffff000, 0xfffffffffffff800, 0xfffffffffffffc00, 0xfffffffffffffe00,
+		0xffffffffffffff00, 0xffffffffffffff80, 0xffffffffffffffc0, 0xffffffffffffffe0,
+		0xfffffffffffffff0, 0xfffffffffffffff8, 0xfffffffffffffffc, 0xfffffffffffffffe,
+		0xffffffffffffffff}
+)
+
 // Tree is a radix tree for IPv4 and IPv6 networks.
 type Tree struct {
 	root32 *numtree.Node32
@@ -130,7 +162,7 @@ func (t *Tree) InplaceInsertNet(n *net.IPNet, value interface{}) {
 func (t *Tree) InplaceInsertNetWithHierarchyChange(n *net.IPNet, value interface{}) bool {
 	var hasChildren bool
 	if n == nil {
-		return false
+		return hasChildren
 	}
 
 	if key, bits := iPv4NetToUint32(n); bits >= 0 {
@@ -160,7 +192,6 @@ func (t *Tree) InplaceInsertNetWithHierarchyChange(n *net.IPNet, value interface
 				r, _ = r.InplaceInsertWithHierarchyChange(LSKey, LSBits, value)
 				t.root64, hasChildren = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, subTree64(r))
 			}
-			return hasChildren
 		}
 	}
 	return hasChildren
@@ -204,10 +235,10 @@ func (t *Tree) EnumerateFrom(cidr *net.IPNet) chan Pair {
 		}
 
 		if cidr.IP.To4() == nil {
-			t.enumerateFrom2(ch, cidr)
+			t.enumerateFromIPv6Net(ch, cidr)
 		} else {
 			ip, bits := iPv4NetToUint32(cidr)
-			t.enumerateFrom(ch, ip, uint8(bits))
+			t.enumerateFromIPv4Net(ch, ip, uint8(bits))
 		}
 	}()
 
@@ -363,106 +394,6 @@ func debugNode64(tree *numtree.Node64) string {
 	return sb.String()
 }
 
-func hasChildrenNode32(c *numtree.Node32, key uint32, bits int) bool {
-	if c.Key == key && int(c.Bits) == bits {
-		c1, c2 := c.Children()
-		if c1 != nil && contains(key, c1.Key, uint8(bits), c1.Bits) {
-			return true
-		}
-		if c2 != nil && contains(key, c2.Key, uint8(bits), c2.Bits) {
-			return true
-		}
-		return false
-	}
-
-	return contains(key, c.Key, uint8(bits), c.Bits)
-}
-
-func hasChildrenNode64(c *numtree.Node64, MSKey uint64, MSBits int) bool {
-	if c.Key == MSKey && int(c.Bits) == MSBits {
-		c1, c2 := c.Children()
-		if c1 != nil && contains2(MSKey, MSBits, 0, 0, c1.Key, int(c1.Bits), 0, 0) {
-			return true
-		}
-		if c2 != nil && contains2(MSKey, MSBits, 0, 0, c2.Key, int(c2.Bits), 0, 0) {
-			return true
-		}
-		return false
-	}
-	return contains2(MSKey, MSBits, 0, 0, c.Key, int(c.Bits), 0, 0)
-}
-
-func hasNestedChildrenNode64(p *numtree.Node64, c *numtree.Node64, MSKey uint64, MSBits int, LSKey uint64, LSBits int) bool {
-	if MSKey == p.Key && LSKey == c.Key && ((int(p.Bits) + int(c.Bits)) == (MSBits + LSBits)) {
-		c1, c2 := c.Children()
-		if c1 != nil && contains2(MSKey, MSBits, LSKey, LSBits, p.Key, int(p.Bits), c1.Key, int(c1.Bits)) {
-			return true
-		}
-		if c2 != nil && contains2(MSKey, MSBits, LSKey, LSBits, p.Key, int(p.Bits), c2.Key, int(c2.Bits)) {
-			return true
-		}
-		return false
-	}
-	return false
-}
-
-func (t *Tree) GetByNet2(n *net.IPNet) (interface{}, bool, bool) {
-	if t == nil || n == nil {
-		return nil, false, false
-	}
-
-	if key, bits := iPv4NetToUint32(n); bits >= 0 {
-		v, c, ok := t.root32.Match2(key, bits)
-		if c == nil {
-			return v, false, ok
-		}
-
-		return v, hasChildrenNode32(c, key, bits), ok
-	}
-
-	if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
-		v, c, ok := t.root64.Match2(MSKey, MSBits)
-		if !ok || MSBits < numtree.Key64BitSize {
-			if c != nil {
-				return v, hasChildrenNode64(c, MSKey, MSBits), ok
-			}
-
-			return v, false, ok
-		}
-
-		s, ok := v.(subTree64)
-		if !ok {
-			if c != nil {
-				return v, hasChildrenNode64(c, MSKey, MSBits), true
-			}
-			return v, false, true
-		}
-
-		var c2 *numtree.Node64
-		v, c2, ok = (*numtree.Node64)(s).Match2(LSKey, LSBits)
-		if ok {
-			if c2 != nil {
-				return v, hasNestedChildrenNode64(c, c2, MSKey, MSBits, LSKey, LSBits), ok
-			}
-
-			return v, false, ok
-		}
-
-		hasChildren := false
-		if c2 != nil {
-			if contains2(MSKey, MSBits, LSKey, LSBits, MSKey, MSBits, c2.Key, int(c2.Bits)) {
-				hasChildren = true
-			}
-		}
-
-		value, _, ok := t.root64.Match2(MSKey, numtree.Key64BitSize-1)
-
-		return value, hasChildren, ok
-	}
-
-	return nil, false, false
-}
-
 // GetByIP gets value for network which is equal to or contains given IP address.
 func (t *Tree) GetByIP(ip net.IP) (interface{}, bool) {
 	return t.GetByNet(newIPNetFromIP(ip))
@@ -515,7 +446,7 @@ func (t *Tree) DeleteByIP(ip net.IP) (*Tree, bool) {
 	return t.DeleteByNet(newIPNetFromIP(ip))
 }
 
-func contains2(mkey1 uint64, mbits1 int, lkey1 uint64, lbits1 int, mkey2 uint64, mbits2 int, lkey2 uint64, lbits2 int) bool {
+func containsIPv6(mkey1 uint64, mbits1 int, lkey1 uint64, lbits1 int, mkey2 uint64, mbits2 int, lkey2 uint64, lbits2 int) bool {
 	bits1 := mbits1 + lbits1
 	bits2 := mbits2 + lbits2
 
@@ -594,39 +525,7 @@ func contains2(mkey1 uint64, mbits1 int, lkey1 uint64, lbits1 int, mkey2 uint64,
 	return true
 }
 
-var (
-	masks32 = []uint32{
-		0x00000000, 0x80000000, 0xc0000000, 0xe0000000,
-		0xf0000000, 0xf8000000, 0xfc000000, 0xfe000000,
-		0xff000000, 0xff800000, 0xffc00000, 0xffe00000,
-		0xfff00000, 0xfff80000, 0xfffc0000, 0xfffe0000,
-		0xffff0000, 0xffff8000, 0xffffc000, 0xffffe000,
-		0xfffff000, 0xfffff800, 0xfffffc00, 0xfffffe00,
-		0xffffff00, 0xffffff80, 0xffffffc0, 0xffffffe0,
-		0xfffffff0, 0xfffffff8, 0xfffffffc, 0xfffffffe,
-		0xffffffff}
-
-	masks64 = []uint64{
-		0x0000000000000000, 0x8000000000000000, 0xc000000000000000, 0xe000000000000000,
-		0xf000000000000000, 0xf800000000000000, 0xfc00000000000000, 0xfe00000000000000,
-		0xff00000000000000, 0xff80000000000000, 0xffc0000000000000, 0xffe0000000000000,
-		0xfff0000000000000, 0xfff8000000000000, 0xfffc000000000000, 0xfffe000000000000,
-		0xffff000000000000, 0xffff800000000000, 0xffffc00000000000, 0xffffe00000000000,
-		0xfffff00000000000, 0xfffff80000000000, 0xfffffc0000000000, 0xfffffe0000000000,
-		0xffffff0000000000, 0xffffff8000000000, 0xffffffc000000000, 0xffffffe000000000,
-		0xfffffff000000000, 0xfffffff800000000, 0xfffffffc00000000, 0xfffffffe00000000,
-		0xffffffff00000000, 0xffffffff80000000, 0xffffffffc0000000, 0xffffffffe0000000,
-		0xfffffffff0000000, 0xfffffffff8000000, 0xfffffffffc000000, 0xfffffffffe000000,
-		0xffffffffff000000, 0xffffffffff800000, 0xffffffffffc00000, 0xffffffffffe00000,
-		0xfffffffffff00000, 0xfffffffffff80000, 0xfffffffffffc0000, 0xfffffffffffe0000,
-		0xffffffffffff0000, 0xffffffffffff8000, 0xffffffffffffc000, 0xffffffffffffe000,
-		0xfffffffffffff000, 0xfffffffffffff800, 0xfffffffffffffc00, 0xfffffffffffffe00,
-		0xffffffffffffff00, 0xffffffffffffff80, 0xffffffffffffffc0, 0xffffffffffffffe0,
-		0xfffffffffffffff0, 0xfffffffffffffff8, 0xfffffffffffffffc, 0xfffffffffffffffe,
-		0xffffffffffffffff}
-)
-
-func contains(key1, key2 uint32, bits1, bits2 uint8) bool {
+func containsIPv4(key1, key2 uint32, bits1, bits2 uint8) bool {
 	if key1 == key2 && bits1 > bits2 {
 		return false
 	}
@@ -651,7 +550,7 @@ func contains(key1, key2 uint32, bits1, bits2 uint8) bool {
 	return true
 }
 
-func (t *Tree) enumerateFrom(ch chan Pair, ip uint32, bits uint8) {
+func (t *Tree) enumerateFromIPv4Net(ch chan Pair, ip uint32, bits uint8) {
 	reached := false
 	for n := range t.root32.Enumerate() {
 		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
@@ -660,7 +559,7 @@ func (t *Tree) enumerateFrom(ch chan Pair, ip uint32, bits uint8) {
 			reached = true
 		}
 
-		if !reached || (reached && !contains(ip, n.Key, bits, n.Bits)) {
+		if !reached || (reached && !containsIPv4(ip, n.Key, bits, n.Bits)) {
 			continue
 		}
 
@@ -672,7 +571,7 @@ func (t *Tree) enumerateFrom(ch chan Pair, ip uint32, bits uint8) {
 	}
 }
 
-func (t *Tree) enumerateFrom2(ch chan Pair, cidr *net.IPNet) {
+func (t *Tree) enumerateFromIPv6Net(ch chan Pair, cidr *net.IPNet) {
 	reached := false
 	mkey, mbits, lkey, lbits := iPv6NetToUint64Pair(cidr)
 
@@ -688,7 +587,7 @@ func (t *Tree) enumerateFrom2(ch chan Pair, cidr *net.IPNet) {
 					reached = true
 				}
 
-				if !reached || (reached && !contains2(mkey, mbits, lkey, lbits, n.Key, int(n.Bits), n2.Key, int(n2.Bits))) {
+				if !reached || (reached && !containsIPv6(mkey, mbits, lkey, lbits, n.Key, int(n.Bits), n2.Key, int(n2.Bits))) {
 					continue
 				}
 
@@ -703,7 +602,7 @@ func (t *Tree) enumerateFrom2(ch chan Pair, cidr *net.IPNet) {
 				reached = true
 			}
 
-			if !reached || (reached && !contains2(mkey, mbits, lkey, lbits, n.Key, int(n.Bits), 0, 0)) {
+			if !reached || (reached && !containsIPv6(mkey, mbits, lkey, lbits, n.Key, int(n.Bits), 0, 0)) {
 				continue
 			}
 
