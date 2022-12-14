@@ -159,6 +159,9 @@ func (t *Tree) InplaceInsertNet(n *net.IPNet, value interface{}) {
 	}
 }
 
+// InplaceInsertNetWithHierarchyChange does the same as InplaceInsertNet but additionally returns a boolean,
+// which is true in case the new network being added already exists in the tree or if it becomes the parent node of an
+// already existing node
 func (t *Tree) InplaceInsertNetWithHierarchyChange(n *net.IPNet, value interface{}) bool {
 	var hasChildren bool
 	if n == nil {
@@ -224,6 +227,8 @@ func (t *Tree) Enumerate() chan Pair {
 	return ch
 }
 
+// EnumerateFrom does the same as Enumerate but specifies a network to start enumerating from. All (parent) networks
+// which come before it, are skipped, as well as all child node networks which are not contained by the target network
 func (t *Tree) EnumerateFrom(cidr *net.IPNet) chan Pair {
 	ch := make(chan Pair)
 

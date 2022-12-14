@@ -307,9 +307,8 @@ func (n *Node32) inplaceInsert(key uint32, sbits uint8, value interface{}) *Node
 
 func (n *Node32) inplaceInsertWithHierarchyChange(key uint32, sbits uint8, value interface{}) (*Node32, bool) {
 	var (
-		p           *Node32
-		branch      uint32
-		hasChildren bool
+		p      *Node32
+		branch uint32
 	)
 
 	r := n
@@ -325,7 +324,6 @@ func (n *Node32) inplaceInsertWithHierarchyChange(key uint32, sbits uint8, value
 			if cbits == sbits {
 				m = newNode32(key, sbits, true, value)
 				m.chld[branch] = n
-				hasChildren = true
 			} else {
 				m = newNode32(key&masks32[cbits], cbits, false, nil)
 				m.chld[1-branch] = newNode32(key, sbits, true, value)
@@ -338,15 +336,14 @@ func (n *Node32) inplaceInsertWithHierarchyChange(key uint32, sbits uint8, value
 				p.chld[pBranch] = m
 			}
 
-			return r, hasChildren
+			return r, cbits == sbits
 		}
 
 		if sbits == n.Bits {
 			n.Key = key
 			n.Leaf = true
 			n.Value = value
-			hasChildren = true
-			return r, hasChildren
+			return r, true
 		}
 
 		p = n
@@ -356,11 +353,11 @@ func (n *Node32) inplaceInsertWithHierarchyChange(key uint32, sbits uint8, value
 
 	n = newNode32(key, sbits, true, value)
 	if p == nil {
-		return n, hasChildren
+		return n, false
 	}
 
 	p.chld[branch] = n
-	return r, hasChildren
+	return r, false
 }
 
 func (n *Node32) enumerate(ch chan *Node32) {
