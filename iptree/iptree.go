@@ -300,10 +300,10 @@ func (t *Tree) InplaceInsertNet(n *net.IPNet, value interface{}) {
 	}
 }
 
-// InplaceInsertNetWithHierarchyChange does the same as InplaceInsertNet but additionally returns a boolean,
+// InplaceInsertNetCheckChildren does the same as InplaceInsertNet but additionally returns a boolean,
 // which is true in case the new network being added already exists in the tree or if it becomes the parent node of an
 // already existing node
-func (t *Tree) InplaceInsertNetWithHierarchyChange(n *net.IPNet, value interface{}) bool {
+func (t *Tree) InplaceInsertNetCheckChildren(n *net.IPNet, value interface{}) bool {
 	var hasChildren bool
 	if n == nil {
 		return hasChildren

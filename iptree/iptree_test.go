@@ -797,7 +797,7 @@ func TestUpdateDescendants(t *testing.T) {
 			var r *Tree
 			r = NewTree()
 			for _, c := range tc.actions {
-				actual := r.InplaceInsertNetWithHierarchyChange(parseCIDR(c.network), c.value)
+				actual := r.InplaceInsertNetCheckChildren(parseCIDR(c.network), c.value)
 				if actual != c.expectedResult {
 					t.Errorf(
 						"Expected result does not match for new node entry (%s - %s)\n\t\t expected: %v\n\t\t   actual: %v",
@@ -1034,11 +1034,11 @@ func TestInplaceInsertNet2(t *testing.T) {
 
 	for i, tc := range testCases {
 		tc, i := tc, i+1
-		t.Run(fmt.Sprintf("Test %d: InplaceInsertNetWithHierarchyChange", i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Test %d: InplaceInsertNetCheckChildren", i), func(t *testing.T) {
 			var r *Tree
 			r = NewTree()
 			for _, c := range tc.actions {
-				actual := r.InplaceInsertNetWithHierarchyChange(parseCIDR(c.network), c.value)
+				actual := r.InplaceInsertNetCheckChildren(parseCIDR(c.network), c.value)
 				if actual != c.expectedResult {
 					t.Errorf(
 						"Expected result does not match for new node entry (%s - %s)\n\t\t expected: %v\n\t\t   actual: %v",
