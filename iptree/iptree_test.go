@@ -3,6 +3,7 @@ package iptree
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -1582,4 +1583,121 @@ func assertResult(v interface{}, ok bool, e, desc string, t *testing.T) {
 	}
 
 	t.Errorf("Expected string %q at %s but got nothing", e, desc)
+}
+
+func (t *Tree) String() string {
+	var sb strings.Builder
+	sb.WriteString("\n==== 32 bit ====\n")
+	if t.root32 != nil {
+		sb.WriteString(debugNode32(t.root32))
+	} else {
+		sb.WriteString("nil\n")
+	}
+	sb.WriteString("\n==== 128 bit ====\n")
+	if t.root64 != nil {
+		sb.WriteString(debugNode64(t.root64))
+	} else {
+		sb.WriteString("nil\n")
+	}
+	return sb.String()
+}
+
+func debugNode32(tree *numtree.Node32) string {
+	var sb strings.Builder
+
+	var walk func(n *numtree.Node32, indent int)
+	walk = func(n *numtree.Node32, indent int) {
+		sb.WriteString(fmt.Sprintf("%s%s/%d - (%#v)\n", strings.Repeat("\t", indent), unpackUint32ToIP(n.Key), n.Bits, n.Value))
+		c1, c2 := n.Children()
+		if c1 != nil {
+			walk(c1, indent+1)
+		}
+		if c2 != nil {
+			walk(c2, indent+1)
+		}
+	}
+	walk(tree, 0)
+
+	return sb.String()
+}
+
+func debugNode64(tree *numtree.Node64) string {
+	var sb strings.Builder
+
+	var walk func(n *numtree.Node64, indent int)
+	var walkSubtree func(MSIP net.IP, bits int, n *numtree.Node64, indent int)
+
+	walkSubtree = func(MSIP net.IP, bits int, n *numtree.Node64, indent int) {
+		LSIP := unpackUint64ToIP(n.Key)
+		mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+		sb.WriteString(
+			fmt.Sprintf("%s%s/%d (%#v)\n",
+				strings.Repeat("\t", indent), append(MSIP[0:8], LSIP...).Mask(mask), bits+int(n.Bits), n.Value,
+			),
+		)
+
+		if s, ok := n.Value.(subTree64); ok {
+			walkSubtree(MSIP, bits, s, indent+1)
+		} else {
+			c1, c2 := n.Children()
+			if c1 != nil {
+				walkSubtree(MSIP, bits, c1, indent+1)
+			}
+
+			if c2 != nil {
+				walkSubtree(MSIP, bits, c2, indent+1)
+			}
+		}
+	}
+
+	walk = func(n *numtree.Node64, indent int) {
+		ip := unpackUint64ToIP(n.Key)
+		MSIP := append(ip, make(net.IP, 8)...)
+		bits := n.Bits
+
+		c1, c2 := n.Children()
+
+		if isNil(n.Value) {
+			if c1 != nil {
+				walk(c1, indent)
+			}
+
+			if c2 != nil {
+				walk(c2, indent)
+			}
+		} else {
+			indent2 := indent
+			if s, ok := n.Value.(subTree64); ok {
+				walkSubtree(MSIP, int(bits), s, indent2)
+			} else {
+				sb.WriteString(
+					fmt.Sprintf("%s%s/%d (%#v)\n",
+						strings.Repeat("\t", indent), MSIP, bits, n.Value,
+					),
+				)
+			}
+
+			if c1 != nil {
+				walk(c1, indent+1)
+			}
+
+			if c2 != nil {
+				walk(c2, indent+1)
+			}
+		}
+	}
+	walk(tree, 0)
+
+	return sb.String()
+}
+
+func isNil(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice:
+		return reflect.ValueOf(i).IsNil()
+	}
+	return false
 }
