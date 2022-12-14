@@ -160,6 +160,25 @@ func (n *Node64) ExactMatch(key uint64, bits int) (interface{}, bool) {
 	return r.Value, true
 }
 
+func (n *Node64) FindNode(key uint64, bits int) *Node64 {
+	if n == nil {
+		return nil
+	}
+
+	if bits < 0 {
+		bits = 0
+	} else if bits > Key64BitSize {
+		bits = Key64BitSize
+	}
+
+	r := n.exactMatch(key, uint8(bits))
+	if r == nil {
+		return nil
+	}
+
+	return r
+}
+
 // Delete removes subtree which is contained by given key. The method uses copy on write strategy.
 func (n *Node64) Delete(key uint64, bits int) (*Node64, bool) {
 	if n == nil {
@@ -315,7 +334,7 @@ func (n *Node64) inplaceInsertWithHierarchyChange(key uint64, sbits uint8, value
 			n.Key = key
 			n.Leaf = true
 			n.Value = value
-			return r, true
+			return r, n.chld[0] != nil || n.chld[1] != nil
 		}
 
 		p = n

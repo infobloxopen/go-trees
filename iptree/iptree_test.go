@@ -163,7 +163,7 @@ func TestEnumerate(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
+func TestContainsIPv4(t *testing.T) {
 	testCases := []struct {
 		network1 string
 		network2 string
@@ -227,7 +227,7 @@ func TestContains(t *testing.T) {
 	}
 }
 
-func TestContains2(t *testing.T) {
+func TestContainsIPv6(t *testing.T) {
 	testCases := []struct {
 		network1 string
 		network2 string
@@ -300,6 +300,528 @@ func TestContains2(t *testing.T) {
 	}
 }
 
+func TestUpdateDescendants(t *testing.T) {
+	type action struct {
+		network        string
+		value          string
+		expectedResult bool
+	}
+	testCases := []struct {
+		actions        []action
+		tree           string
+		target         string
+		updateCallback func(Pair) (interface{}, bool)
+		updatedTree    string
+	}{
+		{
+			actions: []action{
+				{"10.0.0.0/24", "0", false},
+				{"10.0.0.0/28", "1", false},
+				{"10.0.0.0/32", "2", false},
+				{"10.0.0.0/16", "3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/16 - (\"3\")\n" +
+				"\t10.0.0.0/24 - (\"0\")\n" +
+				"\t\t10.0.0.0/28 - (\"1\")\n" +
+				"\t\t\t10.0.0.0/32 - (\"2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			target: "10.0.0.0/16",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"10.0.0.0/24": "1.0",
+					"10.0.0.0/28": "1.1",
+					"10.0.0.0/32": "1.2",
+					"10.0.0.0/16": "1.3",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"10.0.0.0/16 - (\"3\")\n" +
+				"\t10.0.0.0/24 - (\"1.0\")\n" +
+				"\t\t10.0.0.0/28 - (\"1.1\")\n" +
+				"\t\t\t10.0.0.0/32 - (\"1.2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/24", "0", false},
+				{"192.168.0.0/28", "1", false},
+				{"10.0.0.0/16", "5", false},
+				{"192.168.0.0/32", "2", false},
+				{"192.168.0.0/16", "3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			target: "192.168.0.0/24",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"192.168.0.0/28": "1.1",
+					"192.168.0.0/32": "1.2",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1.1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"1.2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/16", "3", false},
+				{"192.168.0.0/32", "2", false},
+				{"192.168.0.0/28", "1", true},
+				{"192.168.0.0/24", "0", true},
+				{"10.0.0.0/16", "5", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			target: "10.0.0.0/16",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+		{
+			actions: []action{
+				{"192.168.0.0/16", "3", false},
+				{"192.168.0.0/32", "2", false},
+				{"192.168.0.0/28", "1", true},
+				{"192.168.0.0/24", "0", true},
+				{"10.0.0.0/16", "5", false},
+				{"192.168.0.0/16", "3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+			target: "192.168.0.0/32",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
+				"\n==== 128 bit ====\n" +
+				"nil\n",
+		},
+
+		// IPv6
+		{
+			actions: []action{
+				{"2001:4860:4860::/48", "test 5", false},
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/64", "test 3", false},
+				{"2001:4860:4860::/92", "test 2", false},
+				{"2001:4860:4860::/128", "test 1", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+			target: "2001:4860:4860::/48",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"2001:4860:4860::/56":  "test 1.4",
+					"2001:4860:4860::/64":  "test 1.3",
+					"2001:4860:4860::/92":  "test 1.2",
+					"2001:4860:4860::/128": "test 1.1",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				fmt.Printf("DEBUG: KEY (%s) -- VALUE (%#v)\n", p.Key, p.Value)
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 1.4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 1.3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 1.2\")\n" +
+				"\t\t\t\t2001:4860:4860::/128 (\"test 1.1\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/48", "test 5", false},
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/64", "test 3", false},
+				{"2001:4860:4860::/92", "test 2", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::/64", "test 3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+			target: "2001:4860:4860::/128",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::/127", "test 6", true},
+				{"2001:4860:4860::/92", "test 2", true},
+				{"2001:4860:4860::/64", "test 3", true},
+				{"2001:4860:4860::/56", "test 4", true},
+				{"2001:4860:4860::/48", "test 5", true},
+				{"2001:4860:4860::/127", "test 6", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/127 (\"test 6\")\n" +
+				"\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n",
+			target: "2001:4860:4860::/92",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"2001:4860:4860::/127": "test 1.6",
+					"2001:4860:4860::/128": "test 1.1",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t2001:4860:4860::/127 (\"test 1.6\")\n" +
+				"\t\t\t\t\t2001:4860:4860::/128 (\"test 1.1\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7", false},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n",
+			target: "2001:4860:4860::/56",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"2001:4860:4860::/128":         "test 1.1",
+					"2001:4860:4860::1f:c000:0/98": "test 1.7",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t2001:4860:4860::/128 (\"test 1.1\")\n" +
+				"\t\t2001:4860:4860::1f:c000:0/98 (\"test 1.7\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7", false},
+				{"2001:4860:4860:0:1:0:ffff:ffff/98", "test 8", false},
+				{"2001:4860:4860::/92", "test 2", true},
+				{"2001:4860:4860::001f:ffff:ffff/128", "test 6", false},
+				{"2001:4860:4860::/48", "test 5", true},
+				{"2001:4860:4860::/64", "test 3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n",
+			target: "2001:4860:4860::/91",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7", false},
+				{"2001:4860:4860:0:1:0:ffff:ffff/98", "test 8", false},
+				{"2001:4860:4860::/92", "test 2", true},
+				{"2001:4860:4860::001f:ffff:ffff/128", "test 6", false},
+				{"2001:4860:4860::/48", "test 5", true},
+				{"2001:4860:4860::/64", "test 3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n",
+			target: "2001:4860:4860::/92",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"2001:4860:4860::/128": "test 1.1",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1.1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n",
+		},
+		{
+			actions: []action{
+				{"2001:4860:4860::/56", "test 4", false},
+				{"2001:4860:4860::/128", "test 1", false},
+				{"2001:4860:4860::001f:ffff:ffff/98", "test 7", false},
+				{"2001:4860:4860:0:1:0:ffff:ffff/98", "test 8", false},
+				{"2001:4860:4860::/92", "test 2", true},
+				{"2001:4860:4860::001f:ffff:ffff/128", "test 6", false},
+				{"2001:4860:4860::/48", "test 5", true},
+				{"2001:4860:4860::/64", "test 3", true},
+			},
+			tree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 8\")\n",
+			target: "2001:4860:4860::/64",
+			updateCallback: func(p Pair) (interface{}, bool) {
+				newValues := map[string]string{
+					"2001:4860:4860::/92":              "test 1.2",
+					"2001:4860:4860::/128":             "test 1.1",
+					"2001:4860:4860::1f:c000:0/98":     "test 1.7",
+					"2001:4860:4860::1f:ffff:ffff/128": "test 1.6",
+					"2001:4860:4860:0:1:0:c000:0/98":   "test 1.8",
+				}
+				if v, ok := newValues[p.Key.String()]; ok {
+					return v, true
+				}
+				panic("new value not provided")
+				return nil, false
+			},
+			updatedTree: "" +
+				"\n==== 32 bit ====\n" +
+				"nil\n" +
+				"\n==== 128 bit ====\n" +
+				"2001:4860:4860::/48 (\"test 5\")\n" +
+				"\t2001:4860:4860::/56 (\"test 4\")\n" +
+				"\t\t2001:4860:4860::/64 (\"test 3\")\n" +
+				"\t\t\t2001:4860:4860::/79 (<nil>)\n" +
+				"\t\t\t\t2001:4860:4860::/91 (<nil>)\n" +
+				"\t\t\t\t\t2001:4860:4860::/92 (\"test 1.2\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::/128 (\"test 1.1\")\n" +
+				"\t\t\t\t\t2001:4860:4860::1f:c000:0/98 (\"test 1.7\")\n" +
+				"\t\t\t\t\t\t2001:4860:4860::1f:ffff:ffff/128 (\"test 1.6\")\n" +
+				"\t\t\t\t2001:4860:4860:0:1:0:c000:0/98 (\"test 1.8\")\n",
+		},
+	}
+
+	parseCIDR := func(s string) *net.IPNet {
+		_, n, _ := net.ParseCIDR(s)
+		return n
+	}
+
+	for i, tc := range testCases {
+		tc, i := tc, i+1
+		t.Run(fmt.Sprintf("Test %d: UpdateDescendants", i), func(t *testing.T) {
+			var r *Tree
+			r = NewTree()
+			for _, c := range tc.actions {
+				actual := r.InplaceInsertNetWithHierarchyChange(parseCIDR(c.network), c.value)
+				if actual != c.expectedResult {
+					t.Errorf(
+						"Expected result does not match for new node entry (%s - %s)\n\t\t expected: %v\n\t\t   actual: %v",
+						c.network, c.value, c.expectedResult, actual,
+					)
+				}
+			}
+
+			if tc.tree != "" {
+				if r.String() != tc.tree {
+					t.Errorf("Tree representation did not match\nexpected:\n%s\n\n  actual:\n%s\n", tc.tree, r.String())
+				}
+			}
+
+			r.UpdateDescendants(parseCIDR(tc.target), tc.updateCallback)
+
+			if tc.updatedTree != "" {
+				if r.String() != tc.updatedTree {
+					t.Errorf("Tree representation did not match\nexpected:\n%s\n\n  actual:\n%s\n", tc.updatedTree, r.String())
+				}
+			}
+		})
+	}
+}
+
 func TestInplaceInsertNet2(t *testing.T) {
 	type action struct {
 		network        string
@@ -319,10 +841,10 @@ func TestInplaceInsertNet2(t *testing.T) {
 			},
 			tree: "" +
 				"\n==== 32 bit ====\n" +
-				"10.0.0.0/16\n" +
-				"\t10.0.0.0/24\n" +
-				"\t\t10.0.0.0/28\n" +
-				"\t\t\t10.0.0.0/32\n" +
+				"10.0.0.0/16 - (\"3\")\n" +
+				"\t10.0.0.0/24 - (\"0\")\n" +
+				"\t\t10.0.0.0/28 - (\"1\")\n" +
+				"\t\t\t10.0.0.0/32 - (\"2\")\n" +
 				"\n==== 128 bit ====\n" +
 				"nil\n",
 		},
@@ -336,12 +858,12 @@ func TestInplaceInsertNet2(t *testing.T) {
 			},
 			tree: "" +
 				"\n==== 32 bit ====\n" +
-				"0.0.0.0/0\n" +
-				"\t10.0.0.0/16\n" +
-				"\t192.168.0.0/16\n" +
-				"\t\t192.168.0.0/24\n" +
-				"\t\t\t192.168.0.0/28\n" +
-				"\t\t\t\t192.168.0.0/32\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
 				"\n==== 128 bit ====\n" +
 				"nil\n",
 		},
@@ -355,12 +877,12 @@ func TestInplaceInsertNet2(t *testing.T) {
 			},
 			tree: "" +
 				"\n==== 32 bit ====\n" +
-				"0.0.0.0/0\n" +
-				"\t10.0.0.0/16\n" +
-				"\t192.168.0.0/16\n" +
-				"\t\t192.168.0.0/24\n" +
-				"\t\t\t192.168.0.0/28\n" +
-				"\t\t\t\t192.168.0.0/32\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
 				"\n==== 128 bit ====\n" +
 				"nil\n",
 		},
@@ -375,12 +897,12 @@ func TestInplaceInsertNet2(t *testing.T) {
 			},
 			tree: "" +
 				"\n==== 32 bit ====\n" +
-				"0.0.0.0/0\n" +
-				"\t10.0.0.0/16\n" +
-				"\t192.168.0.0/16\n" +
-				"\t\t192.168.0.0/24\n" +
-				"\t\t\t192.168.0.0/28\n" +
-				"\t\t\t\t192.168.0.0/32\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"5\")\n" +
+				"\t192.168.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/24 - (\"0\")\n" +
+				"\t\t\t192.168.0.0/28 - (\"1\")\n" +
+				"\t\t\t\t192.168.0.0/32 - (\"2\")\n" +
 				"\n==== 128 bit ====\n" +
 				"nil\n",
 		},
@@ -392,11 +914,11 @@ func TestInplaceInsertNet2(t *testing.T) {
 			},
 			tree: "" +
 				"\n==== 32 bit ====\n" +
-				"0.0.0.0/0\n" +
-				"\t10.0.0.0/16\n" +
-				"\t128.0.0.0/1\n" +
-				"\t\t172.0.0.0/16\n" +
-				"\t\t192.168.0.0/16\n" +
+				"0.0.0.0/0 - (<nil>)\n" +
+				"\t10.0.0.0/16 - (\"2\")\n" +
+				"\t128.0.0.0/1 - (<nil>)\n" +
+				"\t\t172.0.0.0/16 - (\"3\")\n" +
+				"\t\t192.168.0.0/16 - (\"1\")\n" +
 				"\n==== 128 bit ====\n" +
 				"nil\n",
 		},
