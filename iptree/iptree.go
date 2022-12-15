@@ -138,10 +138,10 @@ func updateDescendantsIPv4(n *numtree.Node32, isRoot bool, callback UpdateDescen
 	}
 
 	c1, c2 := n.Children()
-	if c1 != nil && containsIPv4(n.Key, c1.Key, n.Bits, c1.Bits) {
+	if c1 != nil {
 		updateDescendantsIPv4(c1, false, callback)
 	}
-	if c2 != nil && containsIPv4(n.Key, c2.Key, n.Bits, c2.Bits) {
+	if c2 != nil {
 		updateDescendantsIPv4(c2, false, callback)
 	}
 }
@@ -165,10 +165,10 @@ func updateDescendantsIPv6(n *numtree.Node64, callback UpdateDescendantsCallback
 			}
 
 			c1, c2 := (*numtree.Node64)(s).Children()
-			if c1 != nil && containsIPv6(n.Key, int(n.Bits), s.Key, int(s.Bits), n.Key, int(n.Bits), c1.Key, int(c1.Bits)) {
+			if c1 != nil {
 				updateDescendantsIPv6(c1, callback, n.Key, int(n.Bits))
 			}
-			if c2 != nil && containsIPv6(n.Key, int(n.Bits), s.Key, int(s.Bits), n.Key, int(n.Bits), c2.Key, int(c2.Bits)) {
+			if c2 != nil {
 				updateDescendantsIPv6(c2, callback, n.Key, int(n.Bits))
 			}
 			return
@@ -185,10 +185,10 @@ func updateDescendantsIPv6(n *numtree.Node64, callback UpdateDescendantsCallback
 
 		c1, c2 := n.Children()
 
-		if c1 != nil && containsIPv6(n.Key, int(n.Bits), 0, 0, c1.Key, int(c1.Bits), 0, 0) {
+		if c1 != nil {
 			updateDescendantsIPv6(c1, callback, n.Key, int(n.Bits))
 		}
-		if c2 != nil && containsIPv6(n.Key, int(n.Bits), 0, 0, c2.Key, int(c2.Bits), 0, 0) {
+		if c2 != nil {
 			updateDescendantsIPv6(c2, callback, n.Key, int(n.Bits))
 		}
 		return
@@ -208,10 +208,10 @@ func updateDescendantsIPv6(n *numtree.Node64, callback UpdateDescendantsCallback
 	}
 
 	c1, c2 := n.Children()
-	if c1 != nil && containsIPv6(0, 0, n.Key, int(n.Bits), 0, 0, c1.Key, int(c1.Bits)) {
+	if c1 != nil {
 		updateDescendantsIPv6(c1, callback, mkey, mbits)
 	}
-	if c2 != nil && containsIPv6(0, 0, n.Key, int(n.Bits), 0, 0, c2.Key, int(c2.Bits)) {
+	if c2 != nil {
 		updateDescendantsIPv6(c2, callback, mkey, mbits)
 	}
 }
@@ -235,10 +235,10 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 
 		if MSBits < numtree.Key64BitSize {
 			c1, c2 := r.Children()
-			if c1 != nil && containsIPv6(MSKey, MSBits, LSKey, LSBits, c1.Key, int(c1.Bits), 0, 0) {
+			if c1 != nil {
 				updateDescendantsIPv6(c1, callback, MSKey, MSBits)
 			}
-			if c2 != nil && containsIPv6(MSKey, MSBits, LSKey, LSBits, c2.Key, int(c2.Bits), 0, 0) {
+			if c2 != nil {
 				updateDescendantsIPv6(c2, callback, MSKey, MSBits)
 			}
 			return
@@ -257,10 +257,10 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 			return
 		}
 		c1, c2 := r2.Children()
-		if c1 != nil && containsIPv6(MSKey, MSBits, LSKey, LSBits, MSKey, MSBits, c1.Key, int(c1.Bits)) {
+		if c1 != nil {
 			updateDescendantsIPv6(c1, callback, MSKey, MSBits)
 		}
-		if c2 != nil && containsIPv6(MSKey, MSBits, LSKey, LSBits, MSKey, MSBits, c2.Key, int(c2.Bits)) {
+		if c2 != nil {
 			updateDescendantsIPv6(c2, callback, MSKey, MSBits)
 		}
 	}
@@ -368,28 +368,6 @@ func (t *Tree) Enumerate() chan Pair {
 	return ch
 }
 
-// EnumerateFrom does the same as Enumerate but specifies a network to start enumerating from. All (parent) networks
-// which come before it, are skipped, as well as all child node networks which are not contained by the target network
-func (t *Tree) EnumerateFrom(cidr *net.IPNet) chan Pair {
-	ch := make(chan Pair)
-
-	go func() {
-		defer close(ch)
-
-		if t == nil {
-			return
-		}
-
-		if cidr.IP.To4() == nil {
-			t.enumerateFromIPv6Net(ch, cidr)
-		} else {
-			t.enumerateFromIPv4Net(ch, cidr)
-		}
-	}()
-
-	return ch
-}
-
 // GetByNet gets value for network which is equal to or contains given network.
 func (t *Tree) GetByNet(n *net.IPNet) (interface{}, bool) {
 	if t == nil || n == nil {
@@ -472,177 +450,6 @@ func (t *Tree) DeleteByNet(n *net.IPNet) (*Tree, bool) {
 // DeleteByIP removes node by given IP address. The method returns new tree (old one remains unaffected) and flag indicating if deletion happens indeed.
 func (t *Tree) DeleteByIP(ip net.IP) (*Tree, bool) {
 	return t.DeleteByNet(newIPNetFromIP(ip))
-}
-
-func containsIPv6(mkey1 uint64, mbits1 int, lkey1 uint64, lbits1 int, mkey2 uint64, mbits2 int, lkey2 uint64, lbits2 int) bool {
-	bits1 := mbits1 + lbits1
-	bits2 := mbits2 + lbits2
-
-	if mkey1 == mkey2 && lkey1 == lkey2 && bits1 > bits2 {
-		return false
-	}
-
-	mask := masks64[mbits1]
-
-	if (byte(mkey1>>56&0xff) & byte(mask>>56&0xff)) != (byte(mkey2>>56&0xff) & byte(mask>>56&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1>>48&0xff) & byte(mask>>48&0xff)) != (byte(mkey2>>48&0xff) & byte(mask>>48&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1>>40&0xff) & byte(mask>>40&0xff)) != (byte(mkey2>>40&0xff) & byte(mask>>40&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1>>32&0xff) & byte(mask>>32&0xff)) != (byte(mkey2>>32&0xff) & byte(mask>>32&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1>>24&0xff) & byte(mask>>24&0xff)) != (byte(mkey2>>24&0xff) & byte(mask>>24&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1>>16&0xff) & byte(mask>>16&0xff)) != (byte(mkey2>>16&0xff) & byte(mask>>16&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1>>8&0xff) & byte(mask>>8&0xff)) != (byte(mkey2>>8&0xff) & byte(mask>>8&0xff)) {
-		return false
-	}
-
-	if (byte(mkey1&0xff) & byte(mask&0xff)) != (byte(mkey2&0xff) & byte(mask&0xff)) {
-		return false
-	}
-
-	mask = masks64[lbits1]
-
-	if (byte(lkey1>>56&0xff) & byte(mask>>56&0xff)) != (byte(lkey2>>56&0xff) & byte(mask>>56&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1>>48&0xff) & byte(mask>>48&0xff)) != (byte(lkey2>>48&0xff) & byte(mask>>48&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1>>40&0xff) & byte(mask>>40&0xff)) != (byte(lkey2>>40&0xff) & byte(mask>>40&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1>>32&0xff) & byte(mask>>32&0xff)) != (byte(lkey2>>32&0xff) & byte(mask>>32&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1>>24&0xff) & byte(mask>>24&0xff)) != (byte(lkey2>>24&0xff) & byte(mask>>24&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1>>16&0xff) & byte(mask>>16&0xff)) != (byte(lkey2>>16&0xff) & byte(mask>>16&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1>>8&0xff) & byte(mask>>8&0xff)) != (byte(lkey2>>8&0xff) & byte(mask>>8&0xff)) {
-		return false
-	}
-
-	if (byte(lkey1&0xff) & byte(mask&0xff)) != (byte(lkey2&0xff) & byte(mask&0xff)) {
-		return false
-	}
-
-	return true
-}
-
-func containsIPv4(key1, key2 uint32, bits1, bits2 uint8) bool {
-	if key1 == key2 && bits1 > bits2 {
-		return false
-	}
-
-	mask := masks32[bits1]
-	if (byte(key1>>24&0xff) & byte(mask>>24&0xff)) != (byte(key2>>24&0xff) & byte(mask>>24&0xff)) {
-		return false
-	}
-
-	if (byte(key1>>16&0xff) & byte(mask>>16&0xff)) != (byte(key2>>16&0xff) & byte(mask>>16&0xff)) {
-		return false
-	}
-
-	if (byte(key1>>8&0xff) & byte(mask>>8&0xff)) != (byte(key2>>8&0xff) & byte(mask>>8&0xff)) {
-		return false
-	}
-
-	if (byte(key1&0xff) & byte(mask&0xff)) != (byte(key2&0xff) & byte(mask&0xff)) {
-		return false
-	}
-
-	return true
-}
-
-func (t *Tree) enumerateFromIPv4Net(ch chan Pair, cidr *net.IPNet) {
-	ip, bits := iPv4NetToUint32(cidr)
-	reached := false
-	for n := range t.root32.Enumerate() {
-		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
-
-		if ip == n.Key && uint8(bits) == n.Bits {
-			reached = true
-		}
-
-		if !reached || (reached && !containsIPv4(ip, n.Key, uint8(bits), n.Bits)) {
-			continue
-		}
-
-		ch <- Pair{
-			Key: &net.IPNet{
-				IP:   unpackUint32ToIP(n.Key).Mask(mask),
-				Mask: mask},
-			Value: n.Value}
-	}
-}
-
-func (t *Tree) enumerateFromIPv6Net(ch chan Pair, cidr *net.IPNet) {
-	reached := false
-	mkey, mbits, lkey, lbits := iPv6NetToUint64Pair(cidr)
-
-	for n := range t.root64.Enumerate() {
-		MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
-		// Value is subTree64 in case we have a bigger network (i.e. smaller bits, e.g. 48, 56, etc... < 64)
-		if s, ok := n.Value.(subTree64); ok {
-			for n2 := range (*numtree.Node64)(s).Enumerate() {
-				LSIP := unpackUint64ToIP(n2.Key)
-				mask := net.CIDRMask(numtree.Key64BitSize+int(n2.Bits), iPv6Bits)
-
-				if mkey == n.Key && mbits == int(n.Bits) && lkey == n2.Key && lbits == int(n2.Bits) {
-					reached = true
-				}
-
-				if !reached || (reached && !containsIPv6(mkey, mbits, lkey, lbits, n.Key, int(n.Bits), n2.Key, int(n2.Bits))) {
-					continue
-				}
-
-				ch <- Pair{
-					Key: &net.IPNet{
-						IP:   append(MSIP[0:8], LSIP...).Mask(mask),
-						Mask: mask},
-					Value: n2.Value}
-			}
-		} else {
-			if mkey == n.Key && mbits == int(n.Bits) && lkey == 0 && lbits == 0 {
-				reached = true
-			}
-
-			if !reached || (reached && !containsIPv6(mkey, mbits, lkey, lbits, n.Key, int(n.Bits), 0, 0)) {
-				continue
-			}
-
-			mask := net.CIDRMask(int(n.Bits), iPv6Bits)
-			ch <- Pair{
-				Key: &net.IPNet{
-					IP:   MSIP.Mask(mask),
-					Mask: mask},
-				Value: n.Value}
-		}
-	}
 }
 
 func (t *Tree) enumerate(ch chan Pair) {
