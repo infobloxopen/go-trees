@@ -92,17 +92,6 @@ func (n *Node64) InplaceInsert(key uint64, bits int, value interface{}) *Node64 
 	return n.inplaceInsert(key, uint8(bits), value)
 }
 
-func (n *Node64) InplaceInsertWithHierarchyChange(key uint64, bits int, value interface{}) (*Node64, bool) {
-	// Adjust bits.
-	if bits < 0 {
-		bits = 0
-	} else if bits > Key64BitSize {
-		bits = Key64BitSize
-	}
-
-	return n.inplaceInsertWithHierarchyChange(key, uint8(bits), value)
-}
-
 // Enumerate returns channel which is populated by nodes in order of their keys.
 func (n *Node64) Enumerate() chan *Node64 {
 	ch := make(chan *Node64)
@@ -145,18 +134,10 @@ func (n *Node64) ExactMatch(key uint64, bits int) (interface{}, bool) {
 	if n == nil {
 		return n, false
 	}
-
-	if bits < 0 {
-		bits = 0
-	} else if bits > Key64BitSize {
-		bits = Key64BitSize
-	}
-
-	r := n.exactMatch(key, uint8(bits))
+	r := n.FindNode(key, bits)
 	if r == nil {
 		return nil, false
 	}
-
 	return r.Value, true
 }
 
@@ -294,61 +275,6 @@ func (n *Node64) inplaceInsert(key uint64, sbits uint8, value interface{}) *Node
 
 	p.chld[branch] = n
 	return r
-}
-
-func (n *Node64) inplaceInsertWithHierarchyChange(key uint64, sbits uint8, value interface{}) (*Node64, bool) {
-	var (
-		p      *Node64
-		branch uint64
-	)
-
-	r := n
-
-	for n != nil {
-		cbits := uint8(bits.LeadingZeros64((n.Key ^ key) | ^masks64[n.Bits] | ^masks64[sbits]))
-		if cbits < n.Bits {
-			pBranch := branch
-			branch = (n.Key >> (Key64BitSize - 1 - cbits)) & 1
-
-			var m *Node64
-
-			if cbits == sbits {
-				m = newNode64(key, sbits, true, value)
-				m.chld[branch] = n
-			} else {
-				m = newNode64(key&masks64[cbits], cbits, false, nil)
-				m.chld[1-branch] = newNode64(key, sbits, true, value)
-			}
-
-			m.chld[branch] = n
-			if p == nil {
-				r = m
-			} else {
-				p.chld[pBranch] = m
-			}
-
-			return r, cbits == sbits
-		}
-
-		if sbits == n.Bits {
-			n.Key = key
-			n.Leaf = true
-			n.Value = value
-			return r, n.chld[0] != nil || n.chld[1] != nil
-		}
-
-		p = n
-		branch = (key >> (Key64BitSize - 1 - cbits)) & 1
-		n = n.chld[branch]
-	}
-
-	n = newNode64(key, sbits, true, value)
-	if p == nil {
-		return n, false
-	}
-
-	p.chld[branch] = n
-	return r, false
 }
 
 func (n *Node64) enumerate(ch chan *Node64) {

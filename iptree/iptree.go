@@ -93,143 +93,96 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 
 type UpdateDescendantsCallback func(Pair) (interface{}, bool)
 
-func updateDescendantsIPv4(n *numtree.Node32, isRoot bool, callback UpdateDescendantsCallback) {
-	// we skip the first (root) node
-	if !isRoot {
-		mask := net.CIDRMask(int(n.Bits), iPv4Bits)
-		key := &net.IPNet{IP: unpackUint32ToIP(n.Key).Mask(mask), Mask: mask}
-
-		newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-		if shouldUpdate {
-			n.Value = newValue
-		}
-	}
-
-	c1, c2 := n.Children()
-	if c1 != nil {
-		updateDescendantsIPv4(c1, false, callback)
-	}
-	if c2 != nil {
-		updateDescendantsIPv4(c2, false, callback)
-	}
-}
-
-func updateDescendantsIPv6(n *numtree.Node64, callback UpdateDescendantsCallback, mkey uint64, mbits int) {
-	// if big network, i.e. bits < 64
-	if mbits < numtree.Key64BitSize {
-		MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
-
-		// if the value contains another tree
-		if s, ok := n.Value.(subTree64); ok {
-			LSIP := unpackUint64ToIP(n.Key)
-			mask := net.CIDRMask(numtree.Key64BitSize+int(s.Bits), iPv6Bits)
-			key := &net.IPNet{IP: append(MSIP[0:8], LSIP...).Mask(mask), Mask: mask}
-
-			if s.Value != nil {
-				newValue, shouldUpdate := callback(Pair{Key: key, Value: s.Value})
-				if shouldUpdate {
-					s.Value = newValue
-				}
-			}
-
-			c1, c2 := (*numtree.Node64)(s).Children()
-			if c1 != nil {
-				updateDescendantsIPv6(c1, callback, n.Key, int(n.Bits))
-			}
-			if c2 != nil {
-				updateDescendantsIPv6(c2, callback, n.Key, int(n.Bits))
-			}
-			return
-		}
-
-		if n.Value != nil {
-			mask := net.CIDRMask(int(n.Bits), iPv6Bits)
-			key := &net.IPNet{IP: MSIP.Mask(mask), Mask: mask}
-			newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-			if shouldUpdate {
-				n.Value = newValue
-			}
-		}
-
-		c1, c2 := n.Children()
-
-		if c1 != nil {
-			updateDescendantsIPv6(c1, callback, n.Key, int(n.Bits))
-		}
-		if c2 != nil {
-			updateDescendantsIPv6(c2, callback, n.Key, int(n.Bits))
-		}
-		return
-	}
-
-	// for smaller networks, i.e. bits >= 64
-	MSIP := append(unpackUint64ToIP(mkey), make(net.IP, 8)...)
-	LSIP := unpackUint64ToIP(n.Key)
-	mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
-	key := &net.IPNet{IP: append(MSIP[0:8], LSIP...).Mask(mask), Mask: mask}
-
-	if n.Value != nil {
-		newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-		if shouldUpdate {
-			n.Value = newValue
-		}
-	}
-
-	c1, c2 := n.Children()
-	if c1 != nil {
-		updateDescendantsIPv6(c1, callback, mkey, mbits)
-	}
-	if c2 != nil {
-		updateDescendantsIPv6(c2, callback, mkey, mbits)
-	}
-}
-
+// UpdateDescendants accepts a target network (node) and a callback, and updates all the descendants of the target node if the callback returns true as its second return value
 func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallback) {
 	if key, bits := iPv4NetToUint32(n); bits >= 0 {
-		r := t.root32.FindNode(key, bits)
-		if r == nil {
+		target := t.root32.FindNode(key, bits)
+		if target == nil {
 			return
 		}
+		i := 0
+		for n := range target.Enumerate() {
+			i++
+			if i == 1 {
+				continue
+			}
+			mask := net.CIDRMask(int(n.Bits), iPv4Bits)
+			key := &net.IPNet{IP: unpackUint32ToIP(n.Key).Mask(mask), Mask: mask}
 
-		updateDescendantsIPv4(r, true, callback)
-		return
+			if n.Value != nil {
+				newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
+				if shouldUpdate {
+					n.Value = newValue
+				}
+			}
+		}
 	}
 
 	if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
-		r := t.root64.FindNode(MSKey, MSBits)
-		if r == nil {
+		target := t.root64.FindNode(MSKey, MSBits)
+		if target == nil {
 			return
 		}
-
-		if MSBits < numtree.Key64BitSize {
-			c1, c2 := r.Children()
-			if c1 != nil {
-				updateDescendantsIPv6(c1, callback, MSKey, MSBits)
+		i := 0
+		s, ok := target.Value.(subTree64)
+		if ok {
+			s2 := (*numtree.Node64)(s)
+			if s2.Key == LSKey && int(s2.Bits) == LSBits {
+				target = s2
+			} else {
+				target = s2.FindNode(LSKey, LSBits)
 			}
-			if c2 != nil {
-				updateDescendantsIPv6(c2, callback, MSKey, MSBits)
+			if target == nil {
+				return
+			}
+
+			MSIP := append(unpackUint64ToIP(MSKey), make(net.IP, 8)...)
+			for n := range target.Enumerate() {
+				i++
+				if i == 1 {
+					continue
+				}
+				LSIP := unpackUint64ToIP(n.Key)
+				mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+				key := &net.IPNet{IP: append(MSIP[0:8], LSIP...).Mask(mask), Mask: mask}
+				if n.Value != nil {
+					newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
+					if shouldUpdate {
+						n.Value = newValue
+					}
+				}
 			}
 			return
 		}
 
-		s, ok := r.Value.(subTree64)
-		if !ok {
-			err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
-				MSKey, MSBits, r, r)
-			panic(err)
-		}
-
-		r2 := (*numtree.Node64)(s).FindNode(LSKey, LSBits)
-
-		if r2 == nil {
-			return
-		}
-		c1, c2 := r2.Children()
-		if c1 != nil {
-			updateDescendantsIPv6(c1, callback, MSKey, MSBits)
-		}
-		if c2 != nil {
-			updateDescendantsIPv6(c2, callback, MSKey, MSBits)
+		for n := range target.Enumerate() {
+			i++
+			if i == 1 {
+				continue
+			}
+			MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
+			if s, ok := n.Value.(subTree64); ok {
+				for n := range (*numtree.Node64)(s).Enumerate() {
+					LSIP := unpackUint64ToIP(n.Key)
+					mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+					key := &net.IPNet{IP: append(MSIP[0:8], LSIP...).Mask(mask), Mask: mask}
+					if n.Value != nil {
+						newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
+						if shouldUpdate {
+							n.Value = newValue
+						}
+					}
+				}
+			} else {
+				mask := net.CIDRMask(int(n.Bits), iPv6Bits)
+				key := &net.IPNet{IP: MSIP.Mask(mask), Mask: mask}
+				if n.Value != nil {
+					newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
+					if shouldUpdate {
+						n.Value = newValue
+					}
+				}
+			}
 		}
 	}
 }
@@ -266,47 +219,6 @@ func (t *Tree) InplaceInsertNet(n *net.IPNet, value interface{}) {
 			}
 		}
 	}
-}
-
-// InplaceInsertNetCheckChildren does the same as InplaceInsertNet but additionally returns a boolean,
-// which is true in case the new network being added already exists in the tree or if it becomes the parent node of an
-// already existing node
-func (t *Tree) InplaceInsertNetCheckChildren(n *net.IPNet, value interface{}) bool {
-	var hasChildren bool
-	if n == nil {
-		return hasChildren
-	}
-
-	if key, bits := iPv4NetToUint32(n); bits >= 0 {
-		t.root32, hasChildren = t.root32.InplaceInsertWithHierarchyChange(key, bits, value)
-		return hasChildren
-	} else if MSKey, MSBits, LSKey, LSBits := iPv6NetToUint64Pair(n); MSBits >= 0 {
-		if MSBits < numtree.Key64BitSize {
-			t.root64, hasChildren = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, value)
-			return hasChildren
-		} else {
-			if v, ok := t.root64.ExactMatch(MSKey, MSBits); ok {
-				s, ok := v.(subTree64)
-				if !ok {
-					err := fmt.Errorf("invalid IPv6 tree: expected subTree64 value at 0x%016x, %d but got %T (%#v)",
-						MSKey, MSBits, v, v)
-					panic(err)
-				}
-
-				r := (*numtree.Node64)(s)
-				var newR *numtree.Node64
-				newR, hasChildren = r.InplaceInsertWithHierarchyChange(LSKey, LSBits, value)
-				if newR != r {
-					t.root64, _ = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, subTree64(newR))
-				}
-			} else {
-				var r *numtree.Node64
-				r, _ = r.InplaceInsertWithHierarchyChange(LSKey, LSBits, value)
-				t.root64, hasChildren = t.root64.InplaceInsertWithHierarchyChange(MSKey, MSBits, subTree64(r))
-			}
-		}
-	}
-	return hasChildren
 }
 
 // InsertIP inserts value using given IP address as a key. The method returns new tree (old one remains unaffected).
