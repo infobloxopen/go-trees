@@ -93,7 +93,7 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 
 type UpdateDescendantsCallback func(Pair) (interface{}, bool)
 
-func updateNode64Descendant(MSIP net.IP, n *numtree.Node64, callback UpdateDescendantsCallback) {
+func updateNode64(MSIP net.IP, n *numtree.Node64, callback UpdateDescendantsCallback) {
 	var key *net.IPNet
 	var ip net.IP
 	var mask net.IPMask
@@ -160,7 +160,7 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 			}
 			for n := range nodesCh {
 				MSIP := append(unpackUint64ToIP(MSKey), make(net.IP, 8)...)
-				updateNode64Descendant(MSIP, n, callback)
+				updateNode64(MSIP, n, callback)
 			}
 			return
 		}
@@ -170,13 +170,13 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 			<-nodesCh
 		}
 		for n := range nodesCh {
-			MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
 			if s, ok := n.Value.(subTree64); ok {
+				MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
 				for n := range (*numtree.Node64)(s).Enumerate() {
-					updateNode64Descendant(MSIP, n, callback)
+					updateNode64(MSIP, n, callback)
 				}
 			} else {
-				updateNode64Descendant(nil, n, callback)
+				updateNode64(nil, n, callback)
 			}
 		}
 	}
