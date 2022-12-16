@@ -131,9 +131,6 @@ func (n *Node64) Match(key uint64, bits int) (interface{}, bool) {
 
 // ExactMatch locates node which exactly matches given key.
 func (n *Node64) ExactMatch(key uint64, bits int) (interface{}, bool) {
-	if n == nil {
-		return n, false
-	}
 	r := n.FindNode(key, bits)
 	if r == nil {
 		return nil, false

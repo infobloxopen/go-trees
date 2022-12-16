@@ -93,6 +93,28 @@ func (t *Tree) InsertNet(n *net.IPNet, value interface{}) *Tree {
 
 type UpdateDescendantsCallback func(Pair) (interface{}, bool)
 
+func updateNode64Descendant(MSIP net.IP, n *numtree.Node64, callback UpdateDescendantsCallback) {
+	var key *net.IPNet
+	var ip net.IP
+	var mask net.IPMask
+
+	if MSIP == nil {
+		ip = append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
+		mask = net.CIDRMask(int(n.Bits), iPv6Bits)
+	} else {
+		LSIP := unpackUint64ToIP(n.Key)
+		ip = append(MSIP[0:8], LSIP...)
+		mask = net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
+	}
+
+	key = &net.IPNet{IP: ip.Mask(mask), Mask: mask}
+
+	newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
+	if shouldUpdate {
+		n.Value = newValue
+	}
+}
+
 // UpdateDescendants accepts a target network (node) and a callback, and updates all the descendants of the target node if the callback returns true as its second return value
 func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallback) {
 	if key, bits := iPv4NetToUint32(n); bits >= 0 {
@@ -100,20 +122,17 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 		if target == nil {
 			return
 		}
-		i := 0
-		for n := range target.Enumerate() {
-			i++
-			if i == 1 {
-				continue
-			}
+		nodesCh := target.Enumerate()
+		if target.Leaf {
+			<-nodesCh
+		}
+		for n := range nodesCh {
 			mask := net.CIDRMask(int(n.Bits), iPv4Bits)
 			key := &net.IPNet{IP: unpackUint32ToIP(n.Key).Mask(mask), Mask: mask}
 
-			if n.Value != nil {
-				newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-				if shouldUpdate {
-					n.Value = newValue
-				}
+			newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
+			if shouldUpdate {
+				n.Value = newValue
 			}
 		}
 	}
@@ -123,7 +142,6 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 		if target == nil {
 			return
 		}
-		i := 0
 		s, ok := target.Value.(subTree64)
 		if ok {
 			s2 := (*numtree.Node64)(s)
@@ -136,52 +154,29 @@ func (t *Tree) UpdateDescendants(n *net.IPNet, callback UpdateDescendantsCallbac
 				return
 			}
 
-			MSIP := append(unpackUint64ToIP(MSKey), make(net.IP, 8)...)
-			for n := range target.Enumerate() {
-				i++
-				if i == 1 {
-					continue
-				}
-				LSIP := unpackUint64ToIP(n.Key)
-				mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
-				key := &net.IPNet{IP: append(MSIP[0:8], LSIP...).Mask(mask), Mask: mask}
-				if n.Value != nil {
-					newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-					if shouldUpdate {
-						n.Value = newValue
-					}
-				}
+			nodesCh := target.Enumerate()
+			if target.Leaf {
+				<-nodesCh
+			}
+			for n := range nodesCh {
+				MSIP := append(unpackUint64ToIP(MSKey), make(net.IP, 8)...)
+				updateNode64Descendant(MSIP, n, callback)
 			}
 			return
 		}
 
-		for n := range target.Enumerate() {
-			i++
-			if i == 1 {
-				continue
-			}
+		nodesCh := target.Enumerate()
+		if target.Leaf {
+			<-nodesCh
+		}
+		for n := range nodesCh {
 			MSIP := append(unpackUint64ToIP(n.Key), make(net.IP, 8)...)
 			if s, ok := n.Value.(subTree64); ok {
 				for n := range (*numtree.Node64)(s).Enumerate() {
-					LSIP := unpackUint64ToIP(n.Key)
-					mask := net.CIDRMask(numtree.Key64BitSize+int(n.Bits), iPv6Bits)
-					key := &net.IPNet{IP: append(MSIP[0:8], LSIP...).Mask(mask), Mask: mask}
-					if n.Value != nil {
-						newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-						if shouldUpdate {
-							n.Value = newValue
-						}
-					}
+					updateNode64Descendant(MSIP, n, callback)
 				}
 			} else {
-				mask := net.CIDRMask(int(n.Bits), iPv6Bits)
-				key := &net.IPNet{IP: MSIP.Mask(mask), Mask: mask}
-				if n.Value != nil {
-					newValue, shouldUpdate := callback(Pair{Key: key, Value: n.Value})
-					if shouldUpdate {
-						n.Value = newValue
-					}
-				}
+				updateNode64Descendant(nil, n, callback)
 			}
 		}
 	}

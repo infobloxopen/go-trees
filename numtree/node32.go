@@ -132,11 +132,6 @@ func (n *Node32) Children() (*Node32, *Node32) {
 
 // ExactMatch locates node which exactly matches given key.
 func (n *Node32) ExactMatch(key uint32, bits int) (interface{}, bool) {
-	// If tree is empty -
-	if n == nil {
-		// report nothing.
-		return n, false
-	}
 	r := n.FindNode(key, bits)
 
 	if r == nil {
